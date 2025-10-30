@@ -19,6 +19,49 @@ const state = {
   dupes: []
 };
 
+/* ========= 媒体正規化 ========= */
+// GAS 側のバケツ定義に合わせる
+const MEDIUM_BUCKETS = [
+  'LINE','Instagram','Facebook','X（旧Twitter）','Googleマップ','Google','Yahoo!検索','Direct/不明'
+];
+const BUCKET_SET = new Set(MEDIUM_BUCKETS);
+
+function normalizeMedium(s){
+  const t = String(s || '').trim();
+
+  // 空/ダミー/誤混入 → Direct/不明
+  if (!t || t === '以下のURL' || /@google\.com\s*$/i.test(t)) return 'Direct/不明';
+
+  // 既に正規バケツならそのまま
+  if (BUCKET_SET.has(t)) return t;
+
+  const lower = t.toLowerCase();
+
+  // UTM ラベル（"UTM: source / medium" 等）から推定
+  if (lower.startsWith('utm:')) {
+    if (lower.includes('line')) return 'LINE';
+    if (lower.includes('instagram') || /\big\b/.test(lower) || /\binsta\b/.test(lower)) return 'Instagram';
+    if (lower.includes('facebook') || /\bfb\b/.test(lower)) return 'Facebook';
+    if (lower.includes('twitter') || /\bx\b/.test(lower)) return 'X（旧Twitter）';
+    if (lower.includes('maps') || lower.includes('gmb') || lower.includes('gmap')) return 'Googleマップ';
+    if (lower.includes('google')) return 'Google';
+    if (lower.includes('yahoo')) return 'Yahoo!検索';
+    return 'Direct/不明';
+  }
+
+  // Referrer/UA 由来の代表的文字列
+  if (lower.includes('liff.line.me') || lower.includes('line/')) return 'LINE';
+  if (lower.includes('instagram')) return 'Instagram';
+  if (lower.includes('facebook') || lower.includes('fbav') || lower.includes('fban') || lower.includes('l.facebook.com')) return 'Facebook';
+  if (lower.includes('x.com') || lower.includes('twitter') || lower.includes('t.co')) return 'X（旧Twitter）';
+  if (lower.includes('google') && lower.includes('/maps')) return 'Googleマップ';
+  if (lower.includes('google')) return 'Google';
+  if (lower.includes('yahoo')) return 'Yahoo!検索';
+
+  // それ以外は Direct/不明 にまとめる（将来の種類が増えたらここに追記）
+  return 'Direct/不明';
+}
+
 // ===== Util =====
 const qs = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
@@ -47,10 +90,12 @@ async function loadData(){
     fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
   ]);
 
-  // 正規化
+  // 正規化（★ mediumNorm を付与）
   state.reservations = (reservationsRaw || []).map(r=>{
     const startD = parseAnyDate(r.startIso || r.start);
     const endD   = parseAnyDate(r.endIso   || r.end);
+    const mediumRaw = r.medium || '';           // GAS: mediumLabel が入ってくる（無い/古い場合あり）
+    const mediumNorm = normalizeMedium(mediumRaw);
     return {
       ...r,
       key: (r.key || keyOf(r)),
@@ -59,7 +104,8 @@ async function loadData(){
       startMs: startD ? startD.getTime() : NaN,
       endMs:   endD   ? endD.getTime()   : NaN,
       memo: r.memo || '',
-      medium: r.medium || ''
+      medium: mediumRaw,
+      mediumNorm // ← ここを以後の表示・集計に使う
     };
   });
 
@@ -96,7 +142,6 @@ function enhanceCustomer(c){
     }
   }
 
-  // latestPast/daysSinceLast はサーバーでも計算済み（保険で再計算）
   const latestPast = c.latestPast ?? (!!last && (now - last) > 0);
   const daysSinceLast = c.daysSinceLast ?? (last ? Math.floor((now - last)/86400000) : null);
 
@@ -269,15 +314,15 @@ function openDrawer(customer){
     .filter(r => keyOf(r)===k)
     .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
-  // 流入元カウント
+  // 流入元カウント（★ mediumNorm で集計）
   const srcCounts = {};
   for (const h of hist) {
-    const label = (h.medium || '').trim() || '不明';
+    const label = h.mediumNorm || 'Direct/不明';
     srcCounts[label] = (srcCounts[label] || 0) + 1;
   }
   renderSourceStats(srcCounts);
 
-  // 履歴テーブル描画
+  // 履歴テーブル描画（★ mediumNorm を表示）
   const tb = qs('#history tbody'); tb.innerHTML='';
   const now = Date.now();
   for(const h of hist){
@@ -288,7 +333,7 @@ function openDrawer(customer){
       <td>${fmt(h.startIso)}</td>
       <td>${esc(h.menu)}</td>
       <td>${esc(h.items||h.opts||'')}</td>
-      <td>${esc(h.medium || '')}</td>
+      <td>${esc(h.mediumNorm || 'Direct/不明')}</td>
       <td>
         <div class="memo-text">${esc(h.memo || '')}</div>
         <button class="memo-edit" type="button">メモ編集</button>
@@ -307,7 +352,7 @@ function openDrawer(customer){
     tb.appendChild(tr);
   }
 
-  // 行内のイベント付与
+  // 行内のイベント付与（既存のまま）
   tb.querySelectorAll('.memo-edit').forEach(btn=>{
     btn.addEventListener('click', async (e)=>{
       const tr = e.target.closest('tr');
@@ -318,7 +363,6 @@ function openDrawer(customer){
       try{
         await postJSON({ action:'upsertResvMemo', resvId, memo });
         tr.querySelector('.memo-text').textContent = memo;
-        // 再読込（メモ同期を確実に）
         const keepKey = state.selectedCustomerKey;
         await loadData();
         const again = state.customers.find(c => keyOf(c) === keepKey);
@@ -332,7 +376,6 @@ function openDrawer(customer){
       const tr = e.target.closest('tr');
       tr.querySelector('.resched-editor')?.removeAttribute('hidden');
       const dt = tr.querySelector('.resched-dt');
-      // 既存の日時を初期値に
       const whenText = tr.children[0].textContent.trim();
       const d = new Date(whenText.replace(/\//g,'-'));
       if (!isNaN(d)) dt.value = `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
