@@ -94,7 +94,14 @@ async function loadData(){
   state.reservations = (reservationsRaw || []).map(r=>{
     const startD = parseAnyDate(r.startIso || r.start);
     const endD   = parseAnyDate(r.endIso   || r.end);
-    const mediumRaw = r.medium || '';           // GAS: mediumLabel が入ってくる（無い/古い場合あり）
+   // ← ここを robust に
+    const mediumRaw =
+      r.medium ??
+      r.mediumLabel ??          // 古い/別実装のキー
+      r.medium_label ??         // つづり違いも面倒見ておく
+      r.mediumSource ??         // 念のため
+      r.source ??               // 念のため
+      '';
     const mediumNorm = normalizeMedium(mediumRaw);
     return {
       ...r,
@@ -104,7 +111,7 @@ async function loadData(){
       startMs: startD ? startD.getTime() : NaN,
       endMs:   endD   ? endD.getTime()   : NaN,
       memo: r.memo || '',
-      medium: mediumRaw,
+      medium: mediumRaw,        // デバッグ確認用に残す
       mediumNorm // ← ここを以後の表示・集計に使う
     };
   });
