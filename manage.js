@@ -1,7 +1,6 @@
 // ▼▼ 設定（差し替え） ▼▼
 const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzdA1IjGbRtqNhbgTfFkeeuTlCKQ_AqJ6OUbVnnLlFuicIh7cEUOurTmYQUVlby5aka/exec';
 const SECURITY_SECRET = '9f3a7c1e5b2d48a0c6e1f4d9b3a8c2e7d5f0a1b6c3d8e2f7a9b0c4e6d1f3a5b7';
-const BOOKING_FORM_URL = 'https://https://officialline0101.github.io/aaaaaaaaatest/index.html'; // フォームA
 
 // オートセグメントしきい値
 const FOLLOWUP_THRESHOLD_DAYS = 90;
@@ -43,14 +42,12 @@ async function loadData(){
     fetchJson(`${base}?resource=customers&secret=${encodeURIComponent(SECURITY_SECRET)}`),
     fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
   ]);
-  // 予約データは start/end がISOで来る想定
   state.customers = customers.map(enhanceCustomer);
   state.reservations = reservations;
   state.distinctMenus = [...new Set(reservations.map(r => r.menu).filter(Boolean))].sort();
   qs('#menuFilter').innerHTML =
     `<option value="">メニュー：すべて</option>` + state.distinctMenus.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
 
-  // 重複候補を更新（閲覧用）
   state.dupes = findDuplicates(state.customers);
   renderDupes();
 
@@ -58,7 +55,6 @@ async function loadData(){
 }
 
 function enhanceCustomer(c){
-  // オートセグメント判定
   const now = new Date();
   const last = c.lastReservation ? new Date(c.lastReservation) : null;
   const days = last ? Math.floor((now - last)/86400000) : null;
@@ -68,7 +64,6 @@ function enhanceCustomer(c){
   if ((c.totalReservations||0) >= LOYAL_MIN_VISITS && last && (now - last)/86400000 <= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'loyal', label:'常連'});
   if (days!=null && days >= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'idle', label:`休眠`});
 
-  // 回数券の期限接近（任意）
   if (c.ticketExpiry) {
     const exp = new Date(c.ticketExpiry);
     if (!isNaN(exp) && exp - now <= TICKET_EXPIRY_SOON_DAYS*86400000 && exp - now > 0) {
@@ -95,7 +90,6 @@ function applyFilter(){
     arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
   }
 
-  // 期間とメニューは予約履歴で判定
   if (from || to || menu) {
     const match = (cust) => {
       const k = keyOf(cust);
@@ -111,12 +105,10 @@ function applyFilter(){
     arr = arr.filter(match);
   }
 
-  // クイックセグメント
   if (quick === 'new') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='new'));
   if (quick === 'loyal') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='loyal'));
   if (quick === 'idle') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle'));
 
-  // 要フォローのみ
   if (followOnly) arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle' || a.k==='ticket'));
 
   state.filtered = arr;
@@ -153,8 +145,7 @@ function makeActionLinks(r){
   const phone = r.phone ? `<a href="tel:${esc(r.phone)}" title="電話">📞</a>` : '';
   const mail  = r.email ? `<a href="mailto:${esc(r.email)}" title="メール">✉️</a>` : '';
   const map   = r.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(r.address)}" target="_blank" title="地図">🗺️</a>` : '';
-  const rebook = `<a href="${BOOKING_FORM_URL}?utm_campaign=crm_rebook" target="_blank" title="前回メニューで予約">🔁</a>`;
-  return `${phone}${mail}${map}${rebook}`;
+  return `${phone}${mail}${map}`;
 }
 
 function renderTable(){
@@ -182,7 +173,6 @@ function renderTable(){
       <td class="cell-actions">${makeActionLinks(r)}</td>
     `;
     tr.addEventListener('click', (e)=>{
-      // 行の余白クリックでドロワー。アイコンクリックはリンク優先。
       if (e.target.tagName === 'A') return;
       openDrawer(r);
     });
@@ -229,7 +219,6 @@ function renderPager(){
 function openDrawer(customer){
   const k = keyOf(customer); state.selectedCustomerKey = k;
 
-  // 履歴
   const hist = state.reservations.filter(r => keyOf(r)===k).sort((a,b)=>String(b.start||'').localeCompare(String(a.start||'')));
   const tb = qs('#history tbody'); tb.innerHTML='';
   for(const h of hist){
@@ -238,17 +227,14 @@ function openDrawer(customer){
     tb.appendChild(tr);
   }
 
-  // タイトル & クイックアクション
   const titleName = customer.name || customer.email || customer.phone || '';
   qs('#drawerTitle').textContent = `顧客プロファイル：${titleName}`;
   qs('#quickActions').innerHTML = [
     customer.phone ? `<a href="tel:${esc(customer.phone)}">📞 電話</a>` : '',
     customer.email ? `<a href="mailto:${esc(customer.email)}">✉️ メール</a>` : '',
-    customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : '',
-    `<a href="${BOOKING_FORM_URL}?utm_campaign=crm_rebook" target="_blank">🔁 前回メニューで予約</a>`
+    customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : ''
   ].filter(Boolean).join('');
 
-  // プロファイル編集
   setVal('#editName', customer.name);
   setVal('#editKana', customer.kana);
   setVal('#editGender', customer.gender);
@@ -340,11 +326,9 @@ function findDuplicates(customers){
     if (p) { if (!byPhone.has(p)) byPhone.set(p, []); byPhone.get(p).push(c); }
   });
 
-  // 同一メール/電話は候補
   for(const [k,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
   for(const [k,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
 
-  // 名前類似 + 電話下4桁一致
   const last4 = s => (s||'').replace(/\D/g,'').slice(-4);
   for(let i=0;i<customers.length;i++){
     for(let j=i+1;j<customers.length;j++){
@@ -369,7 +353,6 @@ function findDuplicates(customers){
   return out;
 }
 function nameSimilarity(a,b){
-  // 簡易レーベンシュタイン類似度
   const dist = levenshtein(a,b);
   const maxLen = Math.max(a.length,b.length) || 1;
   return 1 - dist/maxLen;
@@ -501,7 +484,6 @@ function attach(){
   qs('#exportCsv').addEventListener('click', exportCsv);
   qs('#saveNote').addEventListener('click', saveNote);
 
-  // 表示切替
   document.querySelectorAll('input[name="view"]').forEach(r=>{
     r.addEventListener('change', ()=>{
       document.body.classList.remove('view-auto','view-mobile','view-desktop');
@@ -509,13 +491,11 @@ function attach(){
     });
   });
 
-  // 保存済み条件
   qs('#saveSegment').addEventListener('click', saveCurrentSegment);
   qs('#applySegment').addEventListener('click', applySelectedSegment);
   qs('#deleteSegment').addEventListener('click', deleteSelectedSegment);
   loadSavedSegments();
 
-  // 重複候補
   qs('#toggleDuplicates').addEventListener('click', ()=>showDupes(true));
   qs('#dupesPanel .close').addEventListener('click', ()=>showDupes(false));
   qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
@@ -526,3 +506,4 @@ function attach(){
   await maybeHandleTokenView();
   try { await loadData(); } catch(e){ alert('データ取得に失敗しました。\n'+e); console.error(e); }
 })();
+
