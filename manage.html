@@ -11,9 +11,7 @@
     <h1>顧客管理</h1>
     <div class="tools">
       <input id="q" type="search" placeholder="名前・メール・電話で検索" />
-      <input id="from" type="date" />
-      <span class="tilde">〜</span>
-      <input id="to" type="date" />
+      <input id="from" type="date" /><span class="tilde">〜</span><input id="to" type="date" />
       <select id="menuFilter"><option value="">メニュー：すべて</option></select>
       <input id="tagFilter" type="search" placeholder="タグで絞り込み（例：VIP）" />
       <select id="sort">
@@ -33,7 +31,6 @@
   </header>
 
   <main>
-    <!-- PC向け表 -->
     <section id="customersSection" class="table-wrap">
       <table id="customers">
         <thead>
@@ -44,6 +41,7 @@
             <th>最終来店</th>
             <th>回数</th>
             <th>直近メニュー</th>
+            <th>担当者</th>
             <th>タグ</th>
           </tr>
         </thead>
@@ -52,41 +50,48 @@
       <div id="pager"></div>
     </section>
 
-    <!-- モバイル向けカード -->
     <section id="cardsSection" class="cards" aria-hidden="true"></section>
 
-    <!-- 右ドロワー：履歴＋タグ/メモ編集 -->
     <section id="drawer" aria-hidden="true">
       <div class="drawer-inner">
         <button class="close" aria-label="閉じる">×</button>
-        <h2 id="drawerTitle">来店履歴</h2>
+        <h2 id="drawerTitle">顧客プロファイル & 来店履歴</h2>
 
+        <!-- プロファイル編集 -->
         <div class="note-editor">
-          <div class="row">
-            <label>タグ</label>
-            <input id="editTags" type="text" placeholder="カンマ区切り（例：VIP, 常連）" />
-          </div>
-          <div class="row">
-            <label>メモ</label>
-            <textarea id="editMemo" rows="4" placeholder="任意メモ"></textarea>
+          <div class="grid">
+            <label>氏名</label>           <input id="editName" type="text" />
+            <label>氏名（カナ）</label>   <input id="editKana" type="text" />
+            <label>性別</label>
+            <select id="editGender">
+              <option value="">未選択</option>
+              <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
+            </select>
+            <label>電話</label>           <input id="editPhone" type="tel" />
+            <label>メール</label>         <input id="editEmail" type="email" />
+            <label>住所</label>           <input id="editAddress" type="text" />
+            <label>生年月日</label>       <input id="editBirthdate" type="date" />
+            <label>担当者</label>         <input id="editStaff" type="text" />
+            <label>タグ</label>           <input id="editTags" type="text" placeholder="カンマ区切り（例：VIP, 常連）" />
+            <label>メモ</label>           <textarea id="editMemo" rows="3" placeholder="任意メモ"></textarea>
+
+            <label>初回予約日</label>     <input id="editFirst" type="text" readonly />
+            <label>最終予約日</label>     <input id="editLast" type="text" readonly />
           </div>
           <div class="row actions">
             <button id="saveNote">保存</button>
+            <span id="saveStatus" class="save-status" aria-live="polite"></span>
           </div>
-          <div id="saveStatus" class="save-status" aria-live="polite"></div>
         </div>
 
         <h3>来店履歴</h3>
         <table id="history">
-          <thead>
-            <tr><th>日時</th><th>メニュー</th><th>項目</th><th>ステータス</th></tr>
-          </thead>
+          <thead><tr><th>日時</th><th>メニュー</th><th>項目</th><th>ステータス</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
     </section>
 
-    <!-- 予約メールの token 表示（そのまま） -->
     <section id="tokenView" style="display:none;">
       <h2>予約リンクからの表示</h2>
       <pre id="tokenResult"></pre>
