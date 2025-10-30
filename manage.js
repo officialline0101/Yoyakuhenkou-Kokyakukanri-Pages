@@ -8,36 +8,21 @@ const LOYAL_MIN_VISITS = 5;
 const NEW_THRESHOLD_DAYS = 30;
 const TICKET_EXPIRY_SOON_DAYS = 30;
 
-const state = {
-  customers: [],
-  reservations: [],
-  filtered: [],
-  page: 1, perPage: 20,
-  sortKey: 'lastReservation', sortDir: 'desc',
-  selectedCustomerKey: null,
-  distinctMenus: [],
-  dupes: []
-};
-
-/* ========= 媒体正規化 ========= */
-// GAS 側のバケツ定義に合わせる
+// 集計用媒体バケツ定義
 const MEDIUM_BUCKETS = [
   'LINE','Instagram','Facebook','X（旧Twitter）','Googleマップ','Google','Yahoo!検索','Direct/不明'
 ];
 const BUCKET_SET = new Set(MEDIUM_BUCKETS);
 
-function normalizeMedium(s){
-  const t = String(s || '').trim();
-
-  // 空/ダミー/誤混入 → Direct/不明
-  if (!t || t === '以下のURL' || /@google\.com\s*$/i.test(t)) return 'Direct/不明';
-
-  // 既に正規バケツならそのまま
-  if (BUCKET_SET.has(t)) return t;
-
+function normalizeMedium(raw) {
+  const t = String(raw || '').trim();
+  if (!t || t === '以下のURL' || /@google\.com\s*$/i.test(t)) {
+    return 'Direct/不明';
+  }
+  if (BUCKET_SET.has(t)) {
+    return t;
+  }
   const lower = t.toLowerCase();
-
-  // UTM ラベル（"UTM: source / medium" 等）から推定
   if (lower.startsWith('utm:')) {
     if (lower.includes('line')) return 'LINE';
     if (lower.includes('instagram') || /\big\b/.test(lower) || /\binsta\b/.test(lower)) return 'Instagram';
@@ -48,8 +33,6 @@ function normalizeMedium(s){
     if (lower.includes('yahoo')) return 'Yahoo!検索';
     return 'Direct/不明';
   }
-
-  // Referrer/UA 由来の代表的文字列
   if (lower.includes('liff.line.me') || lower.includes('line/')) return 'LINE';
   if (lower.includes('instagram')) return 'Instagram';
   if (lower.includes('facebook') || lower.includes('fbav') || lower.includes('fban') || lower.includes('l.facebook.com')) return 'Facebook';
@@ -57,50 +40,47 @@ function normalizeMedium(s){
   if (lower.includes('google') && lower.includes('/maps')) return 'Googleマップ';
   if (lower.includes('google')) return 'Google';
   if (lower.includes('yahoo')) return 'Yahoo!検索';
-
-  // それ以外は Direct/不明 にまとめる（将来の種類が増えたらここに追記）
   return 'Direct/不明';
 }
 
-// ===== Util =====
 const qs = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const esc = s => String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const z = n => String(n).padStart(2,'0');
 const fmt = iso => {
-  if(!iso) return '';
-  const d=new Date(iso); if(isNaN(d)) return iso;
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 };
-const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
+const keyOf = r => (r.email||r.phone||r.name||'').toLowerCase().trim();
 const parseAnyDate = v => v ? new Date(v) : null;
-const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`; // "YYYY-MM-DDTHH:mm" -> +09:00 付
+const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`;
 
-async function fetchJson(url){
+async function fetchJson(url) {
   const res = await fetch(url, { method:'GET' });
   const j = await res.json().catch(()=>null);
-  if(!res.ok || !j || !j.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+  if (!res.ok || !j || !j.ok) {
+    throw new Error(j?.error || `HTTP ${res.status}`);
+  }
   return j.data || [];
 }
 
-// ====== Data Load & Enhance ======
-async function loadData(){
+async function loadData() {
   const base = GAS_WEBAPP_URL;
   const [customersRaw, reservationsRaw] = await Promise.all([
     fetchJson(`${base}?resource=customers&secret=${encodeURIComponent(SECURITY_SECRET)}`),
     fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
   ]);
 
-  // 正規化（★ mediumNorm を付与）
-  state.reservations = (reservationsRaw || []).map(r=>{
+  state.reservations = (reservationsRaw || []).map(r => {
     const startD = parseAnyDate(r.startIso || r.start);
     const endD   = parseAnyDate(r.endIso   || r.end);
-   // ← ここを robust に
     const mediumRaw =
       r.medium ??
-      r.mediumLabel ??          // 古い/別実装のキー
-      r.medium_label ??         // つづり違いも面倒見ておく
-      r.mediumSource ??         // 念のため
-      r.source ??               // 念のため
+      r.mediumLabel ??
+      r.medium_label ??
+      r.mediumSource ??
+      r.source ??
       '';
     const mediumNorm = normalizeMedium(mediumRaw);
     return {
@@ -111,8 +91,8 @@ async function loadData(){
       startMs: startD ? startD.getTime() : NaN,
       endMs:   endD   ? endD.getTime()   : NaN,
       memo: r.memo || '',
-      medium: mediumRaw,        // デバッグ確認用に残す
-      mediumNorm // ← ここを以後の表示・集計に使う
+      medium: mediumRaw,
+      mediumNorm: mediumNorm
     };
   });
 
@@ -124,7 +104,8 @@ async function loadData(){
 
   state.distinctMenus = [...new Set(state.reservations.map(r => r.menu).filter(Boolean))].sort();
   qs('#menuFilter').innerHTML =
-    `<option value="">メニュー：すべて</option>` + state.distinctMenus.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
+    `<option value="">メニュー：すべて</option>` +
+    state.distinctMenus.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
 
   state.dupes = findDuplicates(state.customers);
   renderDupes();
@@ -132,140 +113,45 @@ async function loadData(){
   applyFilter();
 }
 
-function enhanceCustomer(c){
-  const now = new Date();
-  const last = c.lastReservation ? new Date(c.lastReservation) : null;
-  const days = last ? Math.floor((now - last)/86400000) : null;
+function openDrawer(customer) {
+  const k = keyOf(customer);
+  state.selectedCustomerKey = k;
 
-  const auto = [];
-  if ((c.totalReservations||0) === 1 && last && (now - last)/86400000 <= NEW_THRESHOLD_DAYS) auto.push({k:'new', label:'新規'});
-  if ((c.totalReservations||0) >= LOYAL_MIN_VISITS && last && (now - last)/86400000 <= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'loyal', label:'常連'});
-  if (days!=null && days >= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'idle', label:`休眠`});
+  const hist = state.reservations
+    .filter(r => keyOf(r) === k)
+    .sort((a,b) => String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
-  if (c.ticketExpiry) {
-    const exp = new Date(c.ticketExpiry);
-    if (!isNaN(exp) && exp - now <= TICKET_EXPIRY_SOON_DAYS*86400000 && exp - now > 0) {
-      auto.push({k:'ticket', label:'回数券期限近'});
-    }
+  const srcCounts = {};
+  for (const h of hist) {
+    const label = h.mediumNorm || 'Direct/不明';
+    srcCounts[label] = (srcCounts[label] || 0) + 1;
   }
+  renderSourceStats(srcCounts);
 
-  const latestPast = c.latestPast ?? (!!last && (now - last) > 0);
-  const daysSinceLast = c.daysSinceLast ?? (last ? Math.floor((now - last)/86400000) : null);
-
-  return { ...c, _auto: auto, _idleDays: days, latestPast, daysSinceLast };
-}
-
-// ====== Filter / Sort / Render ======
-function applyFilter(){
-  const q = qs('#q').value.trim().toLowerCase();
-  const from = qs('#from').value ? new Date(qs('#from').value) : null;
-  const to   = qs('#to').value   ? new Date(qs('#to').value)   : null; if (to) to.setHours(23,59,59,999);
-  const menu = qs('#menuFilter').value;
-  const tagQ = qs('#tagFilter').value.trim().toLowerCase();
-  const quick = qs('#quickSeg').value;
-  const followOnly = qs('#followOnly').checked;
-
-  let arr = state.customers.filter(c =>
-    !q || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(q))
-  );
-
-  if (tagQ) {
-    arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
-  }
-
-  if (from || to || menu) {
-    const match = (cust) => {
-      const k = keyOf(cust);
-      return state.reservations.some(r => {
-        if (keyOf(r) !== k) return false;
-        const d = r.startIso ? new Date(r.startIso) : null;
-        if (from && (!d || d < from)) return false;
-        if (to   && (!d || d > to))   return false;
-        if (menu && r.menu !== menu)  return false;
-        return true;
-      });
-    };
-    arr = arr.filter(match);
-  }
-
-  if (quick === 'new') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='new'));
-  if (quick === 'loyal') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='loyal'));
-  if (quick === 'idle') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle'));
-
-  if (followOnly) arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle' || a.k==='ticket'));
-
-  state.filtered = arr;
-  applySort();
-}
-
-function applySort(){
-  const [key,dir] = qs('#sort').value.split(':');
-  state.sortKey=key; state.sortDir=dir;
-  const m = dir==='asc' ? 1 : -1;
-  state.filtered.sort((a,b)=>{
-    const va=a[key]??'', vb=b[key]??'';
-    if (typeof va==='number' && typeof vb==='number') return (va - vb)*m;
-    return String(va).localeCompare(String(vb))*m;
-  });
-  state.page=1;
-  render();
-}
-
-function render(){
-  renderTable(); renderCards(); renderPager();
-}
-
-function makeContactCell(r){
-  const phone = esc(r.phone||'');
-  const mail = esc(r.email||'');
-  const items = [];
-  if (phone) items.push(`<a href="tel:${phone}">📞 ${phone}</a>`);
-  if (mail) items.push(`<a href="mailto:${mail}">✉️ ${mail}</a>`);
-  return `<div class="cell-contacts">${items.join('')}</div>`;
-}
-
-function makeActionLinks(r){
-  const phone = r.phone ? `<a href="tel:${esc(r.phone)}" title="電話">📞</a>` : '';
-  const mail  = r.email ? `<a href="mailto:${esc(r.email)}" title="メール">✉️</a>` : '';
-  const map   = r.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(r.address)}" target="_blank" title="地図">🗺️</a>` : '';
-  return `${phone}${mail}${map}`;
-}
-
-function renderTable(){
-  const tb = qs('#customers tbody'); tb.innerHTML='';
-  const start=(state.page-1)*state.perPage, rows=state.filtered.slice(start, start+state.perPage);
-
-  for(const r of rows){
-    const tr=document.createElement('tr');
-
-    const tagsHtml = (r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ');
-    const autoHtml = (r._auto||[]).map(a=>{
-      const cls = a.k==='idle'?'badge idle':(a.k==='loyal'?'badge loyal':(a.k==='new'?'badge new':'badge'));
-      return `<span class="${cls}">${esc(a.label)}</span>`;
-    }).join(' ');
-
-    const lastBadge = (()=>{
-      if (!r.lastReservation) return '';
-      return r.latestPast
-        ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>`
-        : ` <span class="badge future">未来</span>`;
-    })();
-
+  const tb = qs('#history tbody');
+  tb.innerHTML = '';
+  const now = Date.now();
+  for (const h of hist) {
+    const canResched = h.startMs && h.startMs > now;
+    const tr = document.createElement('tr');
+    tr.dataset.resvId = h.resvId || '';
     tr.innerHTML = `
-      <td>${esc(r.name || '')}${r._idleDays!=null && r._idleDays>=FOLLOWUP_THRESHOLD_DAYS ? ' <span class="badge idle">要フォロー</span>' : ''}</td>
-      <td>${makeContactCell(r)}</td>
-      <td>${esc(r.address||'')}</td>
-      <td>${fmt(r.lastReservation)}${lastBadge}</td>
-      <td>${r.totalReservations ?? 0}</td>
-      <td>${esc(r.lastMenu || r.lastItems || '')}</td>
-      <td>${esc(r.staff || '')}</td>
-      <td><div class="tags">${tagsHtml} ${autoHtml}</div></td>
-      <td class="cell-actions">${makeActionLinks(r)}</td>
+      <td>${fmt(h.startIso)}</td>
+      <td>${esc(h.menu)}</td>
+      <td>${esc(h.items||h.opts||'')}</td>
+      <td>${esc(h.mediumNorm || 'Direct/不明')}</td>
+      <td><div class="memo-text">${esc(h.memo || '')}</div><button class="memo-edit" type="button">メモ編集</button></td>
+      <td>${
+        canResched
+          ? `<button class="resched-btn" type="button">日時変更</button>
+             <span class="resched-editor" hidden>
+               <input type="datetime-local" class="resched-dt" />
+               <button class="do-resched" type="button">保存</button>
+               <button class="cancel-resched" type="button">×</button>
+             </span>`
+          : `<span style="color:#888">-</span>`
+      }</td>
     `;
-    tr.addEventListener('click', (e)=>{
-      if (e.target.tagName === 'A') return;
-      openDrawer(r);
-    });
     tb.appendChild(tr);
   }
 }
