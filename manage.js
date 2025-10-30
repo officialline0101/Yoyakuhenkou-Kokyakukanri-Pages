@@ -1,8 +1,8 @@
-// ▼▼ 設定：あなたの GAS Web アプリ URL / シークレット ▼▼
+// ▼▼ 接続設定 ▼▼
 const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzdA1IjGbRtqNhbgTfFkeeuTlCKQ_AqJ6OUbVnnLlFuicIh7cEUOurTmYQUVlby5aka/exec';
 const SECURITY_SECRET = '9f3a7c1e5b2d48a0c6e1f4d9b3a8c2e7d5f0a1b6c3d8e2f7a9b0c4e6d1f3a5b7';
 
-// ▼▼ オートセグメント しきい値 ▼▼
+// オートセグメントしきい値
 const FOLLOWUP_THRESHOLD_DAYS = 90;
 const LOYAL_MIN_VISITS = 5;
 const NEW_THRESHOLD_DAYS = 30;
@@ -19,57 +19,27 @@ const state = {
   dupes: []
 };
 
+// ===== Util =====
 const qs = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
-const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
-const toBool = v => String(v).toLowerCase()==='true' || v===true || v==='1' || v===1;
-
-function z(n){ return String(n).padStart(2,'0'); }
-function fmtIso(iso){
+const z = n => String(n).padStart(2,'0');
+const fmt = iso => {
   if(!iso) return '';
-  const d = new Date(iso);
-  if(isNaN(d)) return String(iso);
+  const d=new Date(iso); if(isNaN(d)) return iso;
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
-}
-function toLocalDTValue(iso){
-  if(!iso) return '';
-  const d = new Date(iso); if (isNaN(d)) return '';
-  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
-}
-function toIsoTokyo(dtLocal){ // "YYYY-MM-DDTHH:mm" → +09:00
-  return `${dtLocal}:00+09:00`;
-}
+};
+const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
+const parseAnyDate = v => v ? new Date(v) : null;
+const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`; // "YYYY-MM-DDTHH:mm" -> +09:00 付
 
-// GASからの display 文字列（例: "2025/10/30 (木) 10:00" など）を頑健にパース
-function parseAnyDate(s){
-  if(!s) return null;
-  if (s instanceof Date) return isNaN(s) ? null : s;
-  const t = String(s).trim();
-  // ISO風
-  const d1 = new Date(t); if (!isNaN(d1)) return d1;
-  // yyyy/MM/dd HH:mm, yyyy/MM/dd (E) HH:mm
-  const m = t.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:\s*\(.+?\))?\s+(\d{1,2}):(\d{2})/);
-  if (m) {
-    const [,y,mo,da,hh,mm] = m.map(Number);
-    return new Date(y, mo-1, da, hh, mm, 0);
-  }
-  // yyyy/MM/dd
-  const m2 = t.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
-  if (m2) {
-    const [,y,mo,da] = m2.map(Number);
-    return new Date(y, mo-1, da, 0, 0, 0);
-  }
-  return null;
-}
-function toIso(d){ return d ? new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().replace('.000Z','+00:00') : ''; }
-
-// ===== API =====
 async function fetchJson(url){
   const res = await fetch(url, { method:'GET' });
   const j = await res.json().catch(()=>null);
   if(!res.ok || !j || !j.ok) throw new Error(j?.error || `HTTP ${res.status}`);
   return j.data || [];
 }
+
+// ====== Data Load & Enhance ======
 async function loadData(){
   const base = GAS_WEBAPP_URL;
   const [customersRaw, reservationsRaw] = await Promise.all([
@@ -77,77 +47,63 @@ async function loadData(){
     fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
   ]);
 
-  // 予約を正規化
+  // 正規化
   state.reservations = (reservationsRaw || []).map(r=>{
-    const startD = parseAnyDate(r.start);
-    const endD   = parseAnyDate(r.end);
+    const startD = parseAnyDate(r.startIso || r.start);
+    const endD   = parseAnyDate(r.endIso   || r.end);
     return {
       ...r,
-      key: keyOf(r),
+      key: (r.key || keyOf(r)),
       startIso: startD ? `${startD.getFullYear()}-${z(startD.getMonth()+1)}-${z(startD.getDate())}T${z(startD.getHours())}:${z(startD.getMinutes())}:00+09:00` : '',
-      endIso:   endD   ? `${endD.getFullYear()}-${z(endD.getMonth()+1)}-${z(endD.getDate())}T${z(endD.getHours())}:${z(endD.getMinutes())}:00+09:00` : '',
+      endIso:   endD   ? `${endD.getFullYear()}-${z(endD.getMonth()+1)}-${z(endD.getDate())}T${z(endD.getHours())}:${z(endD.getMinutes())}:00+09:00`   : '',
       startMs: startD ? startD.getTime() : NaN,
       endMs:   endD   ? endD.getTime()   : NaN,
-      memo: r.memo || '' // （GASが返していない場合は空）
+      memo: r.memo || '',
+      medium: r.medium || ''
     };
   });
 
-  // 顧客を正規化＆オートセグ
-  const now = Date.now();
-  state.customers = (customersRaw || []).map(c=>{
-    const f = parseAnyDate(c.firstReservation); const l = parseAnyDate(c.lastReservation);
-    const hasUpcoming = state.reservations.some(r => r.key===keyOf(c) && r.startMs > now);
-    const lastMs = l ? l.getTime() : NaN;
-    const days = isNaN(lastMs) ? null : Math.floor((now - lastMs)/86400000);
+  state.customers = (customersRaw || []).map(c => ({
+    ...c,
+    firstReservation: c.firstReservationIso,
+    lastReservation:  c.lastReservationIso
+  })).map(enhanceCustomer);
 
-    const auto = [];
-    if ((c.totalReservations||0) === 1 && l && (now - lastMs)/86400000 <= NEW_THRESHOLD_DAYS) auto.push({k:'new', label:'新規'});
-    if ((c.totalReservations||0) >= LOYAL_MIN_VISITS && l && (now - lastMs)/86400000 <= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'loyal', label:'常連'});
-    if (days!=null && days >= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'idle', label:'休眠'});
-    if (c.ticketExpiry){
-      const exp = parseAnyDate(c.ticketExpiry);
-      if (exp && exp.getTime() - now > 0 && exp.getTime() - now <= TICKET_EXPIRY_SOON_DAYS*86400000){
-        auto.push({k:'ticket', label:'回数券期限近'});
-      }
-    }
-
-    return {
-      ...c,
-      firstReservationIso: f ? f.toISOString() : '',
-      lastReservationIso: l ? l.toISOString() : '',
-      firstReservation: f ? f.toISOString() : c.firstReservation,
-      lastReservation:  l ? l.toISOString() : c.lastReservation,
-      latestPast: !hasUpcoming && !!l && (l.getTime() <= now),
-      daysSinceLast: days,
-      _auto: auto,
-      _idleDays: days
-    };
-  });
-
-  // メニュー一覧
   state.distinctMenus = [...new Set(state.reservations.map(r => r.menu).filter(Boolean))].sort();
   qs('#menuFilter').innerHTML =
     `<option value="">メニュー：すべて</option>` + state.distinctMenus.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
 
-  // 重複候補
   state.dupes = findDuplicates(state.customers);
   renderDupes();
 
   applyFilter();
 }
-async function postJson(body){
-  const res = await fetch(GAS_WEBAPP_URL, {
-    method:'POST',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ secret: SECURITY_SECRET, ...body })
-  });
-  const txt = await res.text();
-  let j=null; try{ j=JSON.parse(txt); }catch(_){}
-  if(!res.ok || !j || j.ok===false) throw new Error(j?.error || `HTTP ${res.status}`);
-  return j;
+
+function enhanceCustomer(c){
+  const now = new Date();
+  const last = c.lastReservation ? new Date(c.lastReservation) : null;
+  const days = last ? Math.floor((now - last)/86400000) : null;
+
+  const auto = [];
+  if ((c.totalReservations||0) === 1 && last && (now - last)/86400000 <= NEW_THRESHOLD_DAYS) auto.push({k:'new', label:'新規'});
+  if ((c.totalReservations||0) >= LOYAL_MIN_VISITS && last && (now - last)/86400000 <= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'loyal', label:'常連'});
+  if (days!=null && days >= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'idle', label:`休眠`});
+
+  if (c.ticketExpiry) {
+    const exp = new Date(c.ticketExpiry);
+    if (!isNaN(exp) && exp - now <= TICKET_EXPIRY_SOON_DAYS*86400000 && exp - now > 0) {
+      auto.push({k:'ticket', label:'回数券期限近'});
+    }
+  }
+
+  // latestPast/daysSinceLast はサーバーでも計算済み（保険で再計算）
+  const latestPast = c.latestPast ?? (!!last && (now - last) > 0);
+  const daysSinceLast = c.daysSinceLast ?? (last ? Math.floor((now - last)/86400000) : null);
+
+  return { ...c, _auto: auto, _idleDays: days, latestPast, daysSinceLast };
 }
 
-// ===== フィルタ & ソート =====
+// ====== Filter / Sort / Render ======
 function applyFilter(){
   const q = qs('#q').value.trim().toLowerCase();
   const from = qs('#from').value ? new Date(qs('#from').value) : null;
@@ -161,17 +117,19 @@ function applyFilter(){
     !q || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(q))
   );
 
-  if (tagQ) arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
+  if (tagQ) {
+    arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
+  }
 
   if (from || to || menu) {
     const match = (cust) => {
       const k = keyOf(cust);
       return state.reservations.some(r => {
-        if (r.key !== k) return false;
-        const d = r.startMs ? new Date(r.startMs) : null;
+        if (keyOf(r) !== k) return false;
+        const d = r.startIso ? new Date(r.startIso) : null;
         if (from && (!d || d < from)) return false;
-        if (to && (!d || d > to)) return false;
-        if (menu && r.menu !== menu) return false;
+        if (to   && (!d || d > to))   return false;
+        if (menu && r.menu !== menu)  return false;
         return true;
       });
     };
@@ -182,11 +140,12 @@ function applyFilter(){
   if (quick === 'loyal') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='loyal'));
   if (quick === 'idle') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle'));
 
-  if (followOnly) arr = arr.filter(c => c.latestPast || (c._auto||[]).some(a => a.k==='ticket'));
+  if (followOnly) arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle' || a.k==='ticket'));
 
   state.filtered = arr;
   applySort();
 }
+
 function applySort(){
   const [key,dir] = qs('#sort').value.split(':');
   state.sortKey=key; state.sortDir=dir;
@@ -200,15 +159,19 @@ function applySort(){
   render();
 }
 
-// ===== 描画 =====
-function render(){ renderTable(); renderCards(); renderPager(); }
+function render(){
+  renderTable(); renderCards(); renderPager();
+}
+
 function makeContactCell(r){
-  const phone = esc(r.phone||''); const mail = esc(r.email||'');
+  const phone = esc(r.phone||'');
+  const mail = esc(r.email||'');
   const items = [];
   if (phone) items.push(`<a href="tel:${phone}">📞 ${phone}</a>`);
   if (mail) items.push(`<a href="mailto:${mail}">✉️ ${mail}</a>`);
   return `<div class="cell-contacts">${items.join('')}</div>`;
 }
+
 function makeActionLinks(r){
   const phone = r.phone ? `<a href="tel:${esc(r.phone)}" title="電話">📞</a>` : '';
   const mail  = r.email ? `<a href="mailto:${esc(r.email)}" title="メール">✉️</a>` : '';
@@ -223,25 +186,34 @@ function renderTable(){
   for(const r of rows){
     const tr=document.createElement('tr');
 
-    // バッジ
+    const tagsHtml = (r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ');
     const autoHtml = (r._auto||[]).map(a=>{
       const cls = a.k==='idle'?'badge idle':(a.k==='loyal'?'badge loyal':(a.k==='new'?'badge new':'badge'));
       return `<span class="${cls}">${esc(a.label)}</span>`;
     }).join(' ');
-    const followBadge = r.latestPast ? `<span class="badge follow">最新予約は過去（経過${r.daysSinceLast ?? '-'}日）</span>` : '';
+
+    const lastBadge = (()=>{
+      if (!r.lastReservation) return '';
+      return r.latestPast
+        ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>`
+        : ` <span class="badge future">未来</span>`;
+    })();
 
     tr.innerHTML = `
-      <td>${esc(r.name || '')} ${followBadge}</td>
+      <td>${esc(r.name || '')}${r._idleDays!=null && r._idleDays>=FOLLOWUP_THRESHOLD_DAYS ? ' <span class="badge idle">要フォロー</span>' : ''}</td>
       <td>${makeContactCell(r)}</td>
       <td>${esc(r.address||'')}</td>
-      <td>${fmtIso(r.lastReservation)}</td>
+      <td>${fmt(r.lastReservation)}${lastBadge}</td>
       <td>${r.totalReservations ?? 0}</td>
       <td>${esc(r.lastMenu || r.lastItems || '')}</td>
       <td>${esc(r.staff || '')}</td>
-      <td><div class="tags">${(r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')} ${autoHtml}</div></td>
+      <td><div class="tags">${tagsHtml} ${autoHtml}</div></td>
       <td class="cell-actions">${makeActionLinks(r)}</td>
     `;
-    tr.addEventListener('click', (e)=>{ if (e.target.tagName !== 'A') openDrawer(r); });
+    tr.addEventListener('click', (e)=>{
+      if (e.target.tagName === 'A') return;
+      openDrawer(r);
+    });
     tb.appendChild(tr);
   }
 }
@@ -252,16 +224,22 @@ function renderCards(){
 
   for(const r of rows){
     const div=document.createElement('div'); div.className='card';
+
     const autoHtml = (r._auto||[]).map(a=>{
       const cls = a.k==='idle'?'badge idle':(a.k==='loyal'?'badge loyal':(a.k==='new'?'badge new':'badge'));
       return `<span class="${cls}">${esc(a.label)}</span>`;
     }).join(' ');
-    const followBadge = r.latestPast ? `<span class="badge follow">最新予約は過去（経過${r.daysSinceLast ?? '-'}日）</span>` : '';
+
+    const lastBadge = (()=>{
+      if (!r.lastReservation) return '';
+      return r.latestPast
+        ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>`
+        : ` <span class="badge future">未来</span>`;
+    })();
 
     div.innerHTML = `
       <div class="name">${esc(r.name || r.email || r.phone || '')}</div>
-      <div class="meta">最終来店：${fmtIso(r.lastReservation)} / 回数：${r.totalReservations ?? 0}</div>
-      <div>${followBadge}</div>
+      <div class="meta">最終来店：${fmt(r.lastReservation)}${lastBadge} / 回数：${r.totalReservations ?? 0}</div>
       <div>直近メニュー：${esc(r.lastMenu || r.lastItems || '')}</div>
       <div>担当者：${esc(r.staff || '-')}</div>
       <div class="tags">${(r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')} ${autoHtml}</div>
@@ -283,44 +261,110 @@ function renderPager(){
   pager.appendChild(mk('»',()=>{state.page=pages;render();}));
 }
 
-// ===== ドロワー（プロファイル & 履歴 + メモ/リスケ） =====
+// ===== Drawer =====
 function openDrawer(customer){
   const k = keyOf(customer); state.selectedCustomerKey = k;
 
-  // 履歴（予約）を最新順
   const hist = state.reservations
-    .filter(r => r.key===k)
-    .sort((a,b)=> (b.startMs||0) - (a.startMs||0));
+    .filter(r => keyOf(r)===k)
+    .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
+  // 流入元カウント
+  const srcCounts = {};
+  for (const h of hist) {
+    const label = (h.medium || '').trim() || '不明';
+    srcCounts[label] = (srcCounts[label] || 0) + 1;
+  }
+  renderSourceStats(srcCounts);
+
+  // 履歴テーブル描画
   const tb = qs('#history tbody'); tb.innerHTML='';
   const now = Date.now();
-
   for(const h of hist){
-    const isFuture = h.startMs > now;
+    const canResched = h.startMs && h.startMs > now;
     const tr=document.createElement('tr');
     tr.dataset.resvId = h.resvId || '';
     tr.innerHTML = `
-      <td>${fmtIso(h.startIso)}</td>
-      <td>${esc(h.menu||'')}</td>
+      <td>${fmt(h.startIso)}</td>
+      <td>${esc(h.menu)}</td>
       <td>${esc(h.items||h.opts||'')}</td>
-      <td>${esc(h.status||'')}</td>
+      <td>${esc(h.medium || '')}</td>
       <td>
-        <textarea data-memo rows="2" placeholder="予約ごとのメモ（来店時の注意など）">${esc(h.memo||'')}</textarea>
-        <div><button data-save-memo>メモ保存</button></div>
+        <div class="memo-text">${esc(h.memo || '')}</div>
+        <button class="memo-edit" type="button">メモ編集</button>
       </td>
       <td>
-        ${isFuture ? `
-          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap">
-            <input type="datetime-local" data-dt value="${toLocalDTValue(h.startIso)}">
-            <button data-reschedule>日付変更</button>
-          </div>
-        ` : `<span class="badge">過去予約</span>`}
+        ${canResched ? `
+          <button class="resched-btn" type="button">日時変更</button>
+          <span class="resched-editor" hidden>
+            <input type="datetime-local" class="resched-dt" />
+            <button class="do-resched" type="button">保存</button>
+            <button class="cancel-resched" type="button">×</button>
+          </span>
+        ` : `<span style="color:#888">-</span>`}
       </td>
     `;
     tb.appendChild(tr);
   }
 
-  // タイトル / クイックアクション
+  // 行内のイベント付与
+  tb.querySelectorAll('.memo-edit').forEach(btn=>{
+    btn.addEventListener('click', async (e)=>{
+      const tr = e.target.closest('tr');
+      const resvId = tr?.dataset?.resvId || '';
+      const cur = tr.querySelector('.memo-text')?.textContent || '';
+      const memo = prompt('この予約のメモ', cur);
+      if (memo == null) return;
+      try{
+        await postJSON({ action:'upsertResvMemo', resvId, memo });
+        tr.querySelector('.memo-text').textContent = memo;
+        // 再読込（メモ同期を確実に）
+        const keepKey = state.selectedCustomerKey;
+        await loadData();
+        const again = state.customers.find(c => keyOf(c) === keepKey);
+        if (again) openDrawer(again);
+      }catch(err){ alert('保存に失敗しました'); console.error(err); }
+    });
+  });
+
+  tb.querySelectorAll('.resched-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tr = e.target.closest('tr');
+      tr.querySelector('.resched-editor')?.removeAttribute('hidden');
+      const dt = tr.querySelector('.resched-dt');
+      // 既存の日時を初期値に
+      const whenText = tr.children[0].textContent.trim();
+      const d = new Date(whenText.replace(/\//g,'-'));
+      if (!isNaN(d)) dt.value = `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+    });
+  });
+  tb.querySelectorAll('.cancel-resched').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const tr = e.target.closest('tr');
+      tr.querySelector('.resched-editor')?.setAttribute('hidden','');
+    });
+  });
+  tb.querySelectorAll('.do-resched').forEach(btn=>{
+    btn.addEventListener('click', async e=>{
+      const tr = e.target.closest('tr');
+      const resvId = tr?.dataset?.resvId || '';
+      const dt = tr.querySelector('.resched-dt')?.value;
+      if (!dt) return alert('日時を選択してください');
+      try{
+        await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
+        alert('日時を変更しました');
+        const keepKey = state.selectedCustomerKey;
+        await loadData();
+        const again = state.customers.find(c => keyOf(c) === keepKey);
+        if (again) openDrawer(again);
+      }catch(err){
+        console.error(err);
+        alert('変更に失敗しました（営業時間外・重複・過去予約等の可能性）');
+      }
+    });
+  });
+
+  // タイトル & クイックアクション
   const titleName = customer.name || customer.email || customer.phone || '';
   qs('#drawerTitle').textContent = `顧客プロファイル：${titleName}`;
   qs('#quickActions').innerHTML = [
@@ -329,7 +373,7 @@ function openDrawer(customer){
     customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : ''
   ].filter(Boolean).join('');
 
-  // 編集フォーム
+  // 編集フォーム値
   setVal('#editName', customer.name);
   setVal('#editKana', customer.kana);
   setVal('#editGender', customer.gender);
@@ -349,44 +393,19 @@ function openDrawer(customer){
   setVal('#editTicketType', customer.ticketType);
   setVal('#editTicketRemain', customer.ticketRemaining);
   setVal('#editTicketExpiry', (customer.ticketExpiry||'').slice(0,10));
-  setVal('#editFirst', fmtIso(customer.firstReservation));
-  setVal('#editLast', fmtIso(customer.lastReservation));
+  setVal('#editFirst', fmt(customer.firstReservation) || '');
+  setVal('#editLast', fmt(customer.lastReservation)  || '');
   qs('#saveStatus').textContent = '';
 
-  // メモ保存 / リスケ操作（イベント委譲）
-  tb.addEventListener('click', async (e)=>{
-    const tr = e.target.closest('tr'); if(!tr) return;
-    const resvId = tr.dataset.resvId;
-    if (e.target.matches('[data-save-memo]')) {
-      const memo = tr.querySelector('[data-memo]').value;
-      e.target.disabled = true; e.target.textContent='保存中…';
-      try{
-        await postJson({ action:'upsertResvMemo', resvId, memo });
-        const row = state.reservations.find(x => x.resvId===resvId); if (row) row.memo = memo;
-        e.target.textContent='保存しました';
-        setTimeout(()=>{ e.target.textContent='メモ保存'; e.target.disabled=false; }, 800);
-      }catch(err){
-        console.error(err); alert('メモ保存に失敗：' + err.message); e.target.disabled=false; e.target.textContent='メモ保存';
-      }
-    }
-    if (e.target.matches('[data-reschedule]')) {
-      const input = tr.querySelector('[data-dt]');
-      const dt = input?.value;
-      if(!dt) return alert('日時を入力してください');
-      e.target.disabled = true; e.target.textContent='変更中…';
-      try{
-        await postJson({ action:'rescheduleById', resvId, newStartIso: toIsoTokyo(dt) });
-        await loadData(); // 反映
-        // 再度同じ顧客で開き直す
-        const again = state.customers.find(c => keyOf(c)===state.selectedCustomerKey);
-        if (again) openDrawer(again);
-      }catch(err){
-        console.error(err); alert('日付変更に失敗：' + err.message);
-      }finally{
-        e.target.disabled=false; e.target.textContent='日付変更';
-      }
-    }
-  }, { once:false });
+  // 最終来店の状態表示
+  const indic = qs('#lastIndicator');
+  if (customer.lastReservation) {
+    indic.innerHTML = customer.latestPast
+      ? `最終来店は <b>${customer.daysSinceLast ?? '-'}日前</b>（${esc(fmt(customer.lastReservation))}）です。`
+      : `次回予約が <b>${esc(fmt(customer.lastReservation))}</b> にあります。`;
+  } else {
+    indic.textContent = '来店履歴がありません。';
+  }
 
   const drawer=qs('#drawer'); drawer.setAttribute('aria-hidden','false');
   drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
@@ -394,7 +413,33 @@ function openDrawer(customer){
 }
 function setVal(sel, v){ const el=qs(sel); if(el) el.value = v ?? ''; }
 function setChecked(sel, v){ const el=qs(sel); if(el) el.checked = !!v; }
+function toBool(v){ return String(v).toLowerCase()==='true' || v===true || v==='1' || v===1; }
 function closeDrawer(){ qs('#drawer').setAttribute('aria-hidden','true'); }
+
+function renderSourceStats(counts){
+  const wrap = qs('#sourceStats');
+  if (!wrap) return;
+  const entries = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
+  if (entries.length === 0) {
+    wrap.innerHTML = '<span class="srcchip">データなし</span>';
+    return;
+  }
+  wrap.innerHTML = entries
+    .map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`)
+    .join(' ');
+}
+
+// ===== 保存 =====
+async function postJSON(body){
+  const res = await fetch(GAS_WEBAPP_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify({ secret:SECURITY_SECRET, ...body })
+  });
+  const j = await res.json().catch(()=>null);
+  if (!res.ok || !j || j.ok===false) throw new Error(j?.error || `HTTP ${res.status}`);
+  return j.data || j.result || j;
+}
 
 async function saveNote(){
   const key = state.selectedCustomerKey; if(!key) return;
@@ -422,19 +467,18 @@ async function saveNote(){
     ticketExpiry: qs('#editTicketExpiry').value
   };
 
-  const btn = qs('#saveNote'); const status = qs('#saveStatus');
-  btn.disabled = true; status.textContent = '保存中…';
+  qs('#saveNote').disabled = true; qs('#saveStatus').textContent = '保存中…';
   try{
-    await postJson(body);
-    status.textContent = '保存しました。';
+    await postJSON(body);
+    qs('#saveStatus').textContent = '保存しました。';
     const keepKey = state.selectedCustomerKey;
     await loadData();
     const again = state.customers.find(c => keyOf(c) === keepKey);
     if (again) openDrawer(again);
   }catch(e){
-    console.error(e); status.textContent = '保存に失敗しました。';
+    console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。';
   }finally{
-    btn.disabled = false;
+    qs('#saveNote').disabled = false;
   }
 }
 
@@ -451,8 +495,8 @@ function findDuplicates(customers){
     if (p) { if (!byPhone.has(p)) byPhone.set(p, []); byPhone.get(p).push(c); }
   });
 
-  for(const [_,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
-  for(const [_,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
+  for(const [k,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
+  for(const [k,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
 
   const last4 = s => (s||'').replace(/\D/g,'').slice(-4);
   for(let i=0;i<customers.length;i++){
@@ -499,7 +543,11 @@ function renderDupes(){
   const tb = qs('#dupesTbody'); tb.innerHTML='';
   for(const [a,b,why] of state.dupes){
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${esc(a.name||a.email||a.phone||'')}</td><td>${esc(b.name||b.email||b.phone||'')}</td><td>${esc(why)}</td>`;
+    tr.innerHTML = `
+      <td>${esc(a.name||a.email||a.phone||'')}</td>
+      <td>${esc(b.name||b.email||b.phone||'')}</td>
+      <td>${esc(why)}</td>
+    `;
     tb.appendChild(tr);
   }
   qs('#toggleDuplicates').disabled = state.dupes.length===0;
@@ -563,18 +611,19 @@ function exportCsv(){
     '氏名','氏名（カナ）','性別','電話','メール','住所','生年月日',
     '初回予約日','最終予約日','回数','直近メニュー','担当者',
     'タグ','メモ','注意事項','配信同意(メール)','配信同意(LINE)','同意日',
-    '紹介者','紹介コード','回数券','残回数','券期限','自動セグメント','最新予約過去','経過日数'
+    '紹介者','紹介コード','回数券','残回数','券期限',
+    '自動セグメント'
   ];
   const rows = state.filtered.map(r=>{
     const auto = (r._auto||[]).map(a=>a.label).join(' ');
     return [
       r.name||'', r.kana||'', r.gender||'', r.phone||'', r.email||'', r.address||'', (r.birthdate||'').slice(0,10),
-      fmtIso(r.firstReservation), fmtIso(r.lastReservation),
+      fmt(r.firstReservation), fmt(r.lastReservation),
       r.totalReservations??0, r.lastMenu||r.lastItems||'', r.staff||'',
       (r.tags||[]).join(' '), r.memo||'', r.attention||'',
       toBool(r.optInEmail)?'TRUE':'FALSE', toBool(r.optInLine)?'TRUE':'FALSE', (r.consentDate||'').slice(0,10),
       r.referredBy||'', r.referralCode||'', r.ticketType||'', r.ticketRemaining||'', (r.ticketExpiry||'').slice(0,10),
-      auto, r.latestPast ? 'TRUE' : 'FALSE', r.daysSinceLast ?? ''
+      auto
     ];
   });
 
@@ -593,7 +642,7 @@ async function maybeHandleTokenView(){
   }catch(e){ qs('#tokenResult').textContent='読み込みに失敗しました。'; }
 }
 
-// ===== イベント付与 =====
+// ===== Events =====
 function attach(){
   ['#q','#from','#to','#menuFilter','#tagFilter','#quickSeg','#followOnly'].forEach(sel=>{
     qs(sel).addEventListener('input', applyFilter);
@@ -621,7 +670,6 @@ function attach(){
   qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
 }
 
-// ===== 起動 =====
 (async function init(){
   attach();
   await maybeHandleTokenView();
