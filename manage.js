@@ -1,5 +1,5 @@
 // ▼▼ 接続設定 ▼▼
-const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzdA1IjGbRtqNhbgTfFkeeuTlCKQ_AqJ6OUbVnnLlFuicIh7cEUOurTmYQUVlby5aka/exec';
+const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzHAkmuVd8ap40sKMEDFs73ji1YlCRxPxu3xRfmRq0S7XUzptjMAp8gkp8WeHvadMWu/exec';
 const SECURITY_SECRET = '9f3a7c1e5b2d48a0c6e1f4d9b3a8c2e7d5f0a1b6c3d8e2f7a9b0c4e6d1f3a5b7';
 
 // オートセグメントしきい値
