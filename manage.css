@@ -31,6 +31,7 @@ th{position:sticky;top:0;background:#fff;z-index:1}
 .badge.idle{background:#fee;border-color:#fcc}
 .badge.loyal{background:#efe;border-color:#cfc}
 .badge.new{background:#eef;border-color:#cce}
+.badge.follow{background:#ffd;border-color:#ee0}
 
 /* カード（モバイル） */
 .cards{display:none}
