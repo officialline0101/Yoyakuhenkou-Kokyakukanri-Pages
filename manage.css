@@ -1,184 +1,104 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>顧客管理</title>
-  <link rel="stylesheet" href="./manage.css" />
-</head>
-<body class="view-auto">
-  <header>
-    <h1>顧客管理</h1>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;color:#222;background:#fff}
+header{padding:12px 16px;border-bottom:1px solid #eee;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+h1{font-size:18px;margin:0}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tools.row2{margin-top:6px}
+.tools input,.tools select{padding:8px 10px}
+.inline{display:inline-flex;gap:6px;align-items:center}
+.tilde{padding:0 2px;color:#888}
+button{padding:8px 12px;border:1px solid #ddd;background:#fafafa;border-radius:8px;cursor:pointer}
+button:hover{background:#f2f2f2}
+.view-toggle label{margin-left:6px}
+.segmented input{padding:8px 10px;min-width:220px}
+main{padding:16px}
 
-    <div class="tools">
-      <input id="q" type="search" placeholder="名前・メール・電話で検索" />
-      <input id="from" type="date" />
-      <span class="tilde">〜</span>
-      <input id="to" type="date" />
+/* テーブル（PC） */
+.table-wrap{display:block}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:#fff;z-index:1}
+#pager{display:flex;gap:6px;justify-content:flex-end;padding-top:12px}
+#pager button{padding:6px 10px}
+.cell-contacts{display:flex;flex-direction:column;gap:4px;font-size:12px}
+.cell-actions a{margin-right:8px;text-decoration:none}
+.cell-actions a:hover{opacity:.8}
 
-      <select id="menuFilter"><option value="">メニュー：すべて</option></select>
-      <input id="tagFilter" type="search" placeholder="タグで絞り込み（例：VIP）" />
+/* バッジ＆タグ */
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;border:1px solid #ddd;border-radius:999px;padding:2px 8px;background:#fafafa}
+.badge{font-size:12px;border-radius:999px;padding:2px 8px;background:#eef;border:1px solid #ccd}
+.badge.idle{background:#fee;border-color:#fcc}
+.badge.loyal{background:#efe;border-color:#cfc}
+.badge.new{background:#eef;border-color:#cce}
+.badge.past{background:#eee;border-color:#ddd}
+.badge.future{background:#e9f7ff;border-color:#bfe6ff}
 
-      <select id="quickSeg">
-        <option value="">クイック：すべて</option>
-        <option value="new">新規（30日以内/回数=1）</option>
-        <option value="loyal">常連（回数≥5 & 90日以内）</option>
-        <option value="idle">休眠（最終来店90日以上）</option>
-      </select>
+/* カード（モバイル） */
+.cards{display:none}
+.cards .card{border:1px solid #eee;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.cards .name{font-weight:600;margin-bottom:6px}
+.cards .meta{font-size:12px;color:#666;margin-bottom:6px}
+.cards .tags{margin-top:6px}
 
-      <label class="inline"><input id="followOnly" type="checkbox" /> 要フォローのみ</label>
+/* 右ドロワー（スクロール対応） */
+#drawer{
+  position: fixed; inset: 0; background: rgba(0,0,0,.3);
+  display: none; overflow: hidden;
+}
+#drawer[aria-hidden="false"]{ display:block; }
+.drawer-inner{
+  position: absolute; right: 0; top: 0; bottom: 0;
+  width: 560px; max-width: 100%;
+  background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.15);
+  padding: 16px 12px 24px; display: flex; flex-direction: column; gap: 12px;
+  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: 100dvh;
+}
+.drawer-inner h2{margin:0 28px 0 8px;font-size:16px}
+.drawer-inner .close{position:absolute;right:8px;top:8px}
 
-      <select id="sort">
-        <option value="lastReservation:desc">最終来店 新→旧</option>
-        <option value="lastReservation:asc">最終来店 旧→新</option>
-        <option value="totalReservations:desc">来店回数 多→少</option>
-        <option value="name:asc">名前 A→Z</option>
-      </select>
+/* クイックアクション */
+.quick-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 8px}
+.quick-actions a{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #ddd;border-radius:999px;text-decoration:none;background:#fafafa;font-size:14px}
+.quick-actions a:hover{background:#f5f5f5}
 
-      <button id="reload">再読込</button>
-      <button id="exportCsv">CSV</button>
-    </div>
+/* 予約流入元カウント（チップ） */
+.srcstats{display:flex;flex-wrap:wrap;gap:8px;margin:0 8px 8px}
+.srcchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:999px;background:#f7f7f7;font-size:12px}
+.srcchip .count{font-weight:600}
 
-    <div class="tools row2">
-      <div class="view-toggle" role="group" aria-label="表示切替">
-        <label><input type="radio" name="view" value="auto" checked> 自動</label>
-        <label><input type="radio" name="view" value="mobile"> モバイル</label>
-        <label><input type="radio" name="view" value="desktop"> PC</label>
-      </div>
+/* プロファイル編集フォーム */
+.note-editor{border:1px solid #eee;border-radius:12px;padding:12px}
+.note-editor .grid{display:grid;grid-template-columns:140px 1fr;gap:10px 12px;align-items:center}
+.note-editor input,.note-editor select,.note-editor textarea{padding:8px 10px;border:1px solid #ddd;border-radius:8px}
+.note-editor textarea{min-height:80px}
+.note-editor .checks{display:flex;gap:12px;align-items:center}
+.row.actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:8px}
+.save-status{min-height:1.2em;font-size:12px;color:#666}
+.last-indicator{font-size:12px;color:#555;margin-top:6px}
 
-      <div class="segmented">
-        <input id="segmentName" type="text" placeholder="条件に名前を付けて保存" />
-        <button id="saveSegment">保存</button>
-        <select id="savedSegments"><option value="">保存済み条件…</option></select>
-        <button id="applySegment">適用</button>
-        <button id="deleteSegment">削除</button>
-      </div>
+/* 履歴テーブル操作 */
+#history .memo-text{white-space:pre-wrap}
+.resched-editor{display:inline-flex;gap:6px;align-items:center}
+.resched-editor[hidden]{display:none}
 
-      <button id="toggleDuplicates">重複候補</button>
-    </div>
-  </header>
+/* 重複候補パネル */
+.dupes{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none}
+.dupes[aria-hidden="false"]{display:block}
+.dupes-inner{position:absolute;left:50%;top:8%;transform:translateX(-50%);width:960px;max-width:calc(100% - 24px);background:#fff;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.2);overflow:hidden}
+.dupes .head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee}
+.dupes .body{padding:12px 16px;max-height:70vh;overflow:auto}
+.dupes .close{padding:6px 10px}
 
-  <main>
-    <!-- PC向け：表 -->
-    <section id="customersSection" class="table-wrap">
-      <table id="customers">
-        <thead>
-          <tr>
-            <th>お名前</th>
-            <th>連絡先</th>
-            <th>住所</th>
-            <th>最終来店</th>
-            <th>回数</th>
-            <th>直近メニュー</th>
-            <th>担当者</th>
-            <th>タグ / セグメント</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div id="pager"></div>
-    </section>
-
-    <!-- モバイル向け：カード -->
-    <section id="cardsSection" class="cards" aria-hidden="true"></section>
-
-    <!-- 右ドロワー：顧客プロファイル + 来店履歴 -->
-    <section id="drawer" aria-hidden="true">
-      <div class="drawer-inner">
-        <button class="close" aria-label="閉じる">×</button>
-        <h2 id="drawerTitle">顧客プロファイル & 来店履歴</h2>
-
-        <div class="quick-actions" id="quickActions"></div>
-
-        <!-- 流入元カウント -->
-        <h3>予約の流入元カウント</h3>
-        <div id="sourceStats" class="srcstats" aria-live="polite"></div>
-
-        <div class="note-editor">
-          <div class="grid">
-            <label>氏名</label>           <input id="editName" type="text" />
-            <label>氏名（カナ）</label>   <input id="editKana" type="text" />
-            <label>性別</label>
-            <select id="editGender">
-              <option value="">未選択</option>
-              <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
-            </select>
-            <label>電話番号</label>       <input id="editPhone" type="tel" />
-            <label>メールアドレス</label> <input id="editEmail" type="email" />
-            <label>住所</label>           <input id="editAddress" type="text" />
-            <label>生年月日</label>       <input id="editBirthdate" type="date" />
-            <label>担当者</label>         <input id="editStaff" type="text" />
-
-            <label>タグ</label>           <input id="editTags" type="text" placeholder="カンマ区切り（例：VIP, 常連）" />
-            <label>メモ</label>           <textarea id="editMemo" rows="3" placeholder="任意メモ"></textarea>
-
-            <label>注意事項</label>       <textarea id="editAttention" rows="2" placeholder="アレルギー等、配慮点"></textarea>
-            <label>配信同意</label>
-            <div class="checks">
-              <label><input type="checkbox" id="editOptEmail" />メール</label>
-              <label><input type="checkbox" id="editOptLine" />LINE</label>
-            </div>
-            <label>同意日</label>         <input id="editConsentDate" type="date" />
-
-            <label>紹介者</label>         <input id="editReferredBy" type="text" placeholder="紹介者名/コード" />
-            <label>紹介コード</label>     <input id="editReferralCode" type="text" />
-
-            <label>回数券</label>         <input id="editTicketType" type="text" placeholder="例：10回券" />
-            <label>残回数</label>         <input id="editTicketRemain" type="number" min="0" />
-            <label>有効期限</label>       <input id="editTicketExpiry" type="date" />
-
-            <label>初回予約日</label>     <input id="editFirst" type="text" readonly />
-            <label>最終予約日</label>     <input id="editLast" type="text" readonly />
-          </div>
-          <div id="lastIndicator" class="last-indicator"></div>
-          <div class="row actions">
-            <button id="saveNote">保存</button>
-            <span id="saveStatus" class="save-status" aria-live="polite"></span>
-          </div>
-        </div>
-
-        <h3>来店履歴</h3>
-        <table id="history">
-          <thead>
-            <tr>
-              <th>日時</th>
-              <th>メニュー</th>
-              <th>項目</th>
-              <th>流入元</th>
-              <th>メモ</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- 重複候補パネル -->
-    <section id="dupesPanel" class="dupes" aria-hidden="true">
-      <div class="dupes-inner">
-        <div class="head">
-          <h2>重複候補</h2>
-          <button class="close" aria-label="閉じる">×</button>
-        </div>
-        <div class="body">
-          <table>
-            <thead><tr><th>顧客A</th><th>顧客B</th><th>一致理由</th></tr></thead>
-            <tbody id="dupesTbody"></tbody>
-          </table>
-          <p class="help">※いまは閲覧のみ（マージは後日）。</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- 予約メールの token 表示（任意） -->
-    <section id="tokenView" style="display:none;">
-      <h2>予約リンクからの表示</h2>
-      <pre id="tokenResult"></pre>
-    </section>
-  </main>
-
-  <script src="./manage.js"></script>
-</body>
-</html>
+/* 表示切替（自動/モバイル/PC） */
+@media (max-width: 900px){
+  .note-editor .grid{grid-template-columns:1fr}
+}
+@media (max-width: 768px){
+  body.view-auto .table-wrap{display:none}
+  body.view-auto .cards{display:block}
+}
+body.view-mobile .table-wrap{display:none}
+body.view-mobile .cards{display:block}
+body.view-desktop .table-wrap{display:block}
+body.view-desktop .cards{display:none}
