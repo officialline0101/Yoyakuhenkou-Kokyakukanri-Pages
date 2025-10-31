@@ -26,7 +26,7 @@ html, body {
   --danger:     #ef4444;
   --ring:       color-mix(in hsl, var(--brand) 50%, white);
 
-  /* Surfaces / text (light) */
+  /* Surfaces / text (light as default variables for mix) */
   --bg:         #0b0d12;
   --surface:    #11141a;
   --surface-2:  #171b23;
@@ -211,14 +211,6 @@ select {
   font-weight: 600;
 }
 .view-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-.view-toggle input:checked + span,
-.view-toggle input:checked ~ * {
-  /* not used */
-}
-.view-toggle input:checked ~ ._ {
-  /* placeholder */
-}
-.view-toggle input:checked + label,
 .view-toggle label:has(input:checked) {
   background: var(--surface);
   color: var(--text);
@@ -553,10 +545,7 @@ tbody tr:hover {
 }
 .dupes .help { color: var(--muted); }
 
-/* View switching
-   - .view-auto: 幅で自動
-   - .view-mobile / .view-desktop: 強制切替（既存ラジオ連動）
-*/
+/* View switching */
 .view-auto #cardsSection { display: none; }
 .view-auto #customersSection { display: block; }
 @media (max-width: 900px) {
@@ -568,7 +557,7 @@ tbody tr:hover {
 .view-desktop #cardsSection { display: none; }
 .view-desktop #customersSection { display: block; }
 
-/* Links (table action icons use emojiだが質感を上げる) */
+/* Links (action icons) */
 .cell-actions a {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; margin-right: 4px;
@@ -588,12 +577,70 @@ tbody tr:hover {
 .tilde { color: var(--muted); }
 [aria-live="polite"] { min-height: 1.2em; }
 
-/* Body scroll lock when drawer open (Safari/Chrome OK) */
+/* Body scroll lock when drawer open */
 body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
+
+/* ===== Loading Overlay ===== */
+#loading[aria-hidden="false"] {
+  position: fixed;
+  inset: 0;
+  z-index: 100; /* drawer より上 */
+  display: grid;
+  place-items: center;
+  background: color-mix(in hsl, #000 55%, transparent);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+
+#loading[aria-hidden="true"] {
+  position: fixed;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-card {
+  width: min(420px, 92vw);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  padding: 24px 22px;
+  text-align: center;
+}
+
+.spinner {
+  width: 48px; height: 48px;
+  margin: 4px auto 10px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--brand);
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loading-text {
+  margin: 6px 0 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+#loading .retry {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--brand);
+  background: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+#loading .retry:hover { background: var(--brand-600); }
+
+/* ロード中はスクロールを固定 */
+body.is-loading { overflow: hidden; }
 
 /* Print */
 @media print {
-  header, #pager, #cardsSection, #drawer, #dupesPanel { display: none !important; }
+  header, #pager, #cardsSection, #drawer, #dupesPanel, #loading { display: none !important; }
   body { background: #fff; color: #000; }
   .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
 }
