@@ -16,7 +16,9 @@ const state = {
   sortKey: 'lastReservation', sortDir: 'desc',
   selectedCustomerKey: null,
   distinctMenus: [],
-  dupes: []
+  dupes: [],
+  editMode: false,                 // ← 追加：編集ゲート
+  editSnapshot: null               // ← 追加：キャンセル用スナップショット
 };
 
 // ===== Util =====
@@ -29,11 +31,7 @@ const fmt = iso => {
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 };
 const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim(); // 互換のため残す
-
-// 予約/顧客の比較キーを一元化（予約は r.key 優先、なければ email/phone/name）
-function getKey(obj){
-  return (obj && (obj.key || (obj.email || obj.phone || obj.name)))?.toLowerCase().trim() || '';
-}
+function getKey(obj){ return (obj && (obj.key || (obj.email || obj.phone || obj.name)))?.toLowerCase().trim() || ''; }
 
 const parseAnyDate = v => v ? new Date(v) : null;
 const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`; // "YYYY-MM-DDTHH:mm" -> +09:00 付
@@ -65,13 +63,8 @@ function wireLoadingRetry(){
   retryBtn.addEventListener('click', async ()=>{
     retryBtn.hidden = true;
     setGlobalLoading(true, '再試行中…');
-    try {
-      await loadData();
-      setGlobalLoading(false);
-    } catch(e){
-      console.error(e);
-      showLoadError('再試行に失敗しました。ネットワークや権限をご確認ください。');
-    }
+    try { await loadData(); setGlobalLoading(false); }
+    catch(e){ console.error(e); showLoadError('再試行に失敗しました。ネットワークや権限をご確認ください。'); }
   });
 }
 
@@ -152,9 +145,7 @@ function applyFilter(){
     !q || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(q))
   );
 
-  if (tagQ) {
-    arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
-  }
+  if (tagQ) arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
 
   if (from || to || menu) {
     const match = (cust) => {
@@ -194,9 +185,7 @@ function applySort(){
   render();
 }
 
-function render(){
-  renderTable(); renderCards(); renderPager();
-}
+function render(){ renderTable(); renderCards(); renderPager(); }
 
 function makeContactCell(r){
   const phone = esc(r.phone||'');
@@ -229,9 +218,7 @@ function renderTable(){
 
     const lastBadge = (()=>{
       if (!r.lastReservation) return '';
-      return r.latestPast
-        ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>`
-        : ` <span class="badge future">未来</span>`;
+      return r.latestPast ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>` : ` <span class="badge future">未来</span>`;
     })();
 
     tr.innerHTML = `
@@ -245,10 +232,7 @@ function renderTable(){
       <td><div class="tags">${tagsHtml} ${autoHtml}</div></td>
       <td class="cell-actions">${makeActionLinks(r)}</td>
     `;
-    tr.addEventListener('click', (e)=>{
-      if (e.target.tagName === 'A') return;
-      openDrawer(r);
-    });
+    tr.addEventListener('click', (e)=>{ if (e.target.tagName === 'A') return; openDrawer(r); });
     tb.appendChild(tr);
   }
 }
@@ -267,9 +251,7 @@ function renderCards(){
 
     const lastBadge = (()=>{
       if (!r.lastReservation) return '';
-      return r.latestPast
-        ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>`
-        : ` <span class="badge future">未来</span>`;
+      return r.latestPast ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>` : ` <span class="badge future">未来</span>`;
     })();
 
     div.innerHTML = `
@@ -298,11 +280,11 @@ function renderPager(){
 
 // ===== Drawer =====
 function openDrawer(customer){
-  const k = getKey(customer);                   // ← 一元化キーを使用
+  const k = getKey(customer);
   state.selectedCustomerKey = k;
 
   const hist = state.reservations
-    .filter(r => getKey(r) === k)               // ← 予約側も同じ関数で判定
+    .filter(r => getKey(r) === k)
     .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
   // 流入元カウント
@@ -313,25 +295,25 @@ function openDrawer(customer){
   }
   renderSourceStats(srcCounts);
 
-  // 履歴テーブル描画
-  const tb = qs('#history tbody');
-  if (!tb) { console.warn('#history tbody not found'); return; }
+  // 履歴テーブル描画（モバイルで積み上げ表示できるよう data-label 付与）
+  const tb = qs('#history tbody'); if (!tb) { console.warn('#history tbody not found'); return; }
   tb.innerHTML='';
   const now = Date.now();
   for(const h of hist){
     const canResched = h.startMs && h.startMs > now;
     const tr=document.createElement('tr');
     tr.dataset.resvId = h.resvId || '';
+
     tr.innerHTML = `
-      <td>${fmt(h.startIso)}</td>
-      <td>${esc(h.menu || '')}</td>
-      <td>${esc(h.items||h.opts||'')}</td>
-      <td>${esc(h.medium || '')}</td>
-      <td>
+      <td data-label="日時">${fmt(h.startIso)}</td>
+      <td data-label="メニュー">${esc(h.menu || '')}</td>
+      <td data-label="項目">${esc(h.items||h.opts||'')}</td>
+      <td data-label="流入元">${esc(h.medium || '')}</td>
+      <td data-label="メモ">
         <div class="memo-text">${esc(h.memo || '')}</div>
         <button class="memo-edit" type="button">メモ編集</button>
       </td>
-      <td>
+      <td data-label="操作">
         ${canResched ? `
           <button class="resched-btn" type="button">日時変更</button>
           <span class="resched-editor" hidden>
@@ -356,7 +338,6 @@ function openDrawer(customer){
       try{
         await postJSON({ action:'upsertResvMemo', resvId, memo });
         tr.querySelector('.memo-text').textContent = memo;
-        // 再読込（メモ同期を確実に）
         const keepKey = state.selectedCustomerKey;
         await loadData();
         const again = state.customers.find(c => getKey(c) === keepKey);
@@ -364,13 +345,11 @@ function openDrawer(customer){
       }catch(err){ alert('保存に失敗しました'); console.error(err); }
     });
   });
-
   tb.querySelectorAll('.resched-btn').forEach(btn=>{
     btn.addEventListener('click', e=>{
       const tr = e.target.closest('tr');
       tr.querySelector('.resched-editor')?.removeAttribute('hidden');
       const dt = tr.querySelector('.resched-dt');
-      // 既存の日時を初期値に
       const whenText = tr.children[0].textContent.trim();
       const d = new Date(whenText.replace(/\//g,'-'));
       if (!isNaN(d)) dt.value = `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
@@ -411,7 +390,20 @@ function openDrawer(customer){
     customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : ''
   ].filter(Boolean).join('');
 
-  // 編集フォーム値
+  // 編集フォーム値セット
+  fillProfileForm(customer);
+
+  // 初期は編集不可（編集ゲート OFF）
+  setEditMode(false);
+
+  const drawer=qs('#drawer');
+  drawer.setAttribute('aria-hidden','false');
+  document.body.classList.add('drawer-open');
+  drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
+  qs('#drawer .close').onclick = closeDrawer;
+}
+
+function fillProfileForm(customer){
   setVal('#editName', customer.name);
   setVal('#editKana', customer.kana);
   setVal('#editGender', customer.gender);
@@ -434,42 +426,38 @@ function openDrawer(customer){
   setVal('#editFirst', fmt(customer.firstReservation) || '');
   setVal('#editLast', fmt(customer.lastReservation)  || '');
   qs('#saveStatus').textContent = '';
-
-  // 最終来店の状態表示
-  const indic = qs('#lastIndicator');
-  if (customer.lastReservation) {
-    indic.innerHTML = customer.latestPast
-      ? `最終来店は <b>${customer.daysSinceLast ?? '-'}日前</b>（${esc(fmt(customer.lastReservation))}）です。`
-      : `次回予約が <b>${esc(fmt(customer.lastReservation))}</b> にあります。`;
-  } else {
-    indic.textContent = '来店履歴がありません。';
-  }
-
-  const drawer=qs('#drawer');
-  drawer.setAttribute('aria-hidden','false');
-  document.body.classList.add('drawer-open'); // 互換スクロールロック
-  drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
-  qs('#drawer .close').onclick = closeDrawer;
+  // キャンセル用スナップショット
+  state.editSnapshot = JSON.parse(JSON.stringify(customer || {}));
 }
+
+function setEditMode(on){
+  state.editMode = !!on;
+  const grid = document.querySelector('.note-editor .grid');
+  if (grid) grid.querySelectorAll('input, select, textarea').forEach(el => {
+    // 初回/最終予約は読み取り専用維持
+    if (el.id === 'editFirst' || el.id === 'editLast') { el.readOnly = true; el.disabled = true; return; }
+    el.disabled = !on;
+  });
+  // ボタン表示切替
+  qs('#editToggle').hidden = !!on;
+  qs('#saveNote').hidden = !on;
+  qs('#cancelEdit').hidden = !on;
+}
+
 function setVal(sel, v){ const el=qs(sel); if(el) el.value = v ?? ''; }
 function setChecked(sel, v){ const el=qs(sel); if(el) el.checked = !!v; }
 function toBool(v){ return String(v).toLowerCase()==='true' || v===true || v==='1' || v===1; }
+
 function closeDrawer(){
   qs('#drawer').setAttribute('aria-hidden','true');
-  document.body.classList.remove('drawer-open'); // 解除
+  document.body.classList.remove('drawer-open');
 }
 
 function renderSourceStats(counts){
-  const wrap = qs('#sourceStats');
-  if (!wrap) return;
+  const wrap = qs('#sourceStats'); if (!wrap) return;
   const entries = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
-  if (entries.length === 0) {
-    wrap.innerHTML = '<span class="srcchip">データなし</span>';
-    return;
-  }
-  wrap.innerHTML = entries
-    .map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`)
-    .join(' ');
+  if (entries.length === 0) { wrap.innerHTML = '<span class="srcchip">データなし</span>'; return; }
+  wrap.innerHTML = entries.map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`).join(' ');
 }
 
 // ===== 保存 =====
@@ -485,6 +473,7 @@ async function postJSON(body){
 }
 
 async function saveNote(){
+  if (!state.editMode) return; // 編集モード時のみ保存
   const key = state.selectedCustomerKey; if(!key) return;
 
   const body = {
@@ -518,6 +507,7 @@ async function saveNote(){
     await loadData();
     const again = state.customers.find(c => getKey(c) === keepKey);
     if (again) openDrawer(again);
+    setEditMode(false);
   }catch(e){
     console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。';
   }finally{
@@ -564,11 +554,7 @@ function findDuplicates(customers){
   }
   return out;
 }
-function nameSimilarity(a,b){
-  const dist = levenshtein(a,b);
-  const maxLen = Math.max(a.length,b.length) || 1;
-  return 1 - dist/maxLen;
-}
+function nameSimilarity(a,b){ const dist = levenshtein(a,b); const maxLen = Math.max(a.length,b.length) || 1; return 1 - dist/maxLen; }
 function levenshtein(a,b){
   const m = a.length, n = b.length;
   const dp = Array.from({length:m+1}, ()=>Array(n+1).fill(0));
@@ -693,17 +679,21 @@ function attach(){
   });
   qs('#sort').addEventListener('change', applySort);
 
-  // 再読込：ローディングオーバーレイを出す
   qs('#reload').addEventListener('click', async ()=>{
-    try {
-      setGlobalLoading(true, '更新中…');
-      await loadData();
-    } finally {
-      setGlobalLoading(false);
-    }
+    try { setGlobalLoading(true, '更新中…'); await loadData(); }
+    finally { setGlobalLoading(false); }
   });
 
   qs('#exportCsv').addEventListener('click', exportCsv);
+
+  // 編集ゲート：編集/保存/キャンセル
+  qs('#editToggle').addEventListener('click', ()=> setEditMode(true));
+  qs('#cancelEdit').addEventListener('click', ()=>{
+    // スナップショットに戻して編集オフ
+    if (state.editSnapshot) fillProfileForm(state.editSnapshot);
+    setEditMode(false);
+    qs('#saveStatus').textContent = '';
+  });
   qs('#saveNote').addEventListener('click', saveNote);
 
   document.querySelectorAll('input[name="view"]').forEach(r=>{
