@@ -155,7 +155,6 @@ header .tools.row2 { padding-top: 0; padding-bottom: 18px; }
   #from, #to { grid-column: span 1; }
   .tilde { grid-column: span 1; text-align: center; color: var(--muted); }
   button { height: 44px; }
-  #toggleDuplicates { grid-column: 1 / -1; }
 }
 
 /* 極小端末 */
@@ -166,28 +165,6 @@ header .tools.row2 { padding-top: 0; padding-bottom: 18px; }
   #from, #to { grid-column: 1 / -1; }
   .view-toggle { grid-column: 1 / -1; width: 100%; justify-content: space-between; }
   .view-toggle label { flex: 1 1 33%; text-align: center; }
-}
-
-/* Segmented（保存/適用/削除） */
-.segmented {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
-  gap: 8px;
-  align-items: center;
-  grid-column: span 6;
-}
-.segmented input { height: 40px; min-width: 0; }
-.segmented button, .segmented select { min-width: 0; }
-@media (max-width: 900px) {
-  .segmented { grid-template-columns: 1fr 1fr 1fr; }
-}
-@media (max-width: 680px) {
-  .segmented { grid-template-columns: repeat(2, 1fr); grid-column: 1 / -1; }
-  .segmented input { grid-column: 1 / -1; }
-  .segmented button, .segmented select { width: 100%; }
-}
-@media (max-width: 480px) {
-  .segmented { grid-template-columns: 1fr; }
 }
 
 /* ---------- Controls ---------- */
@@ -458,21 +435,6 @@ tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent
 .card .meta { color: var(--text-weak); font-size: 12.5px; margin: 4px 0 8px; }
 @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
 
-/* Dupes panel (modal) */
-#dupesPanel[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
-#dupesPanel[aria-hidden="false"] {
-  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center;
-  background: color-mix(in hsl, #000 52%, transparent); backdrop-filter: blur(4px); opacity: 1;
-}
-.dupes-inner { width: min(920px, 94vw); max-height: 86dvh; overflow: auto; border: 1px solid var(--border); background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-2); }
-.dupes .head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--border); }
-.dupes .head h2 { margin: 0; font-size: 16px; }
-.dupes .close { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); }
-.dupes .body { padding: 12px 14px 18px; }
-.dupes table { width: 100%; border-collapse: separate; border-spacing: 0; }
-.dupes thead th, .dupes tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
-.dupes .help { color: var(--muted); }
-
 /* View switching */
 .view-auto #cardsSection { display: none; }
 .view-auto #customersSection { display: block; }
@@ -517,9 +479,9 @@ body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 
 /* Print */
 @media print {
-  header, #pager, #cardsSection, #drawer, #dupesPanel, #loading { display: none !important; }
+  header, #pager, #cardsSection, #drawer, #loading { display: none !important; }
   body { background: #fff; color: #000; }
-  .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !重要; }
+  .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
 }
 
 /* ======= Added: Highlight / Empty / Toast / Command Palette / Column menu ======= */
@@ -610,17 +572,6 @@ td.empty, .empty-card {
 #colmenu .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; }
 #colmenu .row:hover { background: color-mix(in hsl, var(--brand) 12%, transparent); }
 
-/* 列非表示クラス（1〜9列目） */
-#customers.hide-col-1  td:nth-child(1), #customers.hide-col-1  th:nth-child(1) { display: none; }
-#customers.hide-col-2  td:nth-child(2), #customers.hide-col-2  th:nth-child(2) { display: none; }
-#customers.hide-col-3  td:nth-child(3), #customers.hide-col-3  th:nth-child(3) { display: none; }
-#customers.hide-col-4  td:nth-child(4), #customers.hide-col-4  th:nth-child(4) { display: none; }
-#customers.hide-col-5  td:nth-child(5), #customers.hide-col-5  th:nth-child(5) { display: none; }
-#customers.hide-col-6  td:nth-child(6), #customers.hide-col-6  th:nth-child(6) { display: none; }
-#customers.hide-col-7  td:nth-child(7), #customers.hide-col-7  th:nth-child(7) { display: none; }
-#customers.hide-col-8  td:nth-child(8), #customers.hide-col-8  th:nth-child(8) { display: none; }
-#customers.hide-col-9  td:nth-child(9), #customers.hide-col-9  th:nth-child(9) { display: none; }
-
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001s !important; transition-duration: .001s !important; }
@@ -628,5 +579,5 @@ td.empty, .empty-card {
 
 /* High Contrast */
 @media (forced-colors: active) {
-  .kbar-card, #colmenu, .toast, .table-wrap, .card, .dupes-inner { border: 1px solid CanvasText; }
+  .kbar-card, #colmenu, .toast, .table-wrap, .card { border: 1px solid CanvasText; }
 }
