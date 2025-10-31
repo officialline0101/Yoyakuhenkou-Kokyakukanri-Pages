@@ -693,3 +693,52 @@ body.is-loading { overflow: hidden; }
   body { background: #fff; color: #000; }
   .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
 }
+
+
+/* ==== Drawer mobile fixes & hardening ==== */
+
+/* 右側カラムにドロワーを“必ず”配置（左に詰まる問題の根本） */
+#drawer[aria-hidden="false"] {
+  display: grid;
+  grid-template-columns: 1fr min(520px, 100vw);
+  place-items: stretch;
+}
+#drawer[aria-hidden="false"] .drawer-inner {
+  grid-column: 2;              /* ← 右カラムへ固定 */
+  width: min(520px, 100vw);
+  margin-left: auto;           /* 右寄せの保険 */
+}
+
+/* モバイルでの高さ/セーフエリア/スクロール最適化 */
+#drawer .drawer-inner {
+  height: 100vh;
+  overscroll-behavior: contain;           /* 背景の巻き込みスクロール防止 */
+  -webkit-overflow-scrolling: touch;      /* iOS スクロール慣性 */
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px) + 16px);
+}
+
+/* 新しいビューポート単位が使える端末ではより正確に */
+@supports (height: 100dvh) {
+  #drawer .drawer-inner { height: 100dvh; }
+}
+@supports (height: 100svh) {
+  #drawer .drawer-inner { height: 100svh; }
+}
+@supports (height: 100lvh) {
+  #drawer .drawer-inner { height: 100lvh; }
+}
+
+/* 背景側のクリック面を確保（右固定で左がオーバーレイになる想定） */
+#drawer[aria-hidden="false"]::before {
+  content: "";
+  grid-column: 1;              /* 左カラム全面をクリック遮蔽に */
+}
+
+/* 入力時にiOSが勝手にズームするのを防止（<16px対象） */
+@media (max-width: 680px) {
+  input, select, textarea { font-size: 16px; }
+}
+
+/* 古いブラウザ向け：:has() 非対応でもスクロールロックを効かせる */
+body.drawer-open { overflow: hidden; }
