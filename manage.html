@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ja">
-<head>
+<head:
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>顧客管理</title>
@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="./manage.css" />
 </head>
 <body class="view-auto">
-  <!-- ▼▼ 初回ロード用オーバーレイ ▼▼ -->
+  <!-- ▼ ローディング -->
   <div id="loading" class="loading" aria-hidden="false" aria-live="polite" aria-busy="true">
     <div class="loading-card">
       <div class="spinner" role="img" aria-label="読み込み中"></div>
@@ -20,7 +20,7 @@
       <button class="retry" hidden>再読み込み</button>
     </div>
   </div>
-  <!-- ▲▲ /初回ロード用オーバーレイ ▲▲ -->
+  <!-- ▲ ローディング -->
 
   <header>
     <h1>顧客管理</h1>
@@ -148,7 +148,9 @@
           </div>
           <div id="lastIndicator" class="last-indicator"></div>
           <div class="row actions">
-            <button id="saveNote">保存</button>
+            <button id="editToggle" type="button">編集</button>
+            <button id="saveNote" type="button" hidden>保存</button>
+            <button id="cancelEdit" type="button" hidden>キャンセル</button>
             <span id="saveStatus" class="save-status" aria-live="polite"></span>
           </div>
         </div>
