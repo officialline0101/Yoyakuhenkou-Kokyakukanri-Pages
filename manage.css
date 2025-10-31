@@ -363,8 +363,6 @@ tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent
 }
 
 /* ===== 来店履歴：新レスポンシブ（モバイル＝カード／PC＝表） ===== */
-
-/* 共通 */
 .hchip {
   display:inline-flex; align-items:center; gap:6px;
   padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800;
@@ -374,13 +372,11 @@ tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent
 .hchip.past   { background: color-mix(in hsl, var(--muted) 22%, transparent); color: var(--text); }
 .hchip.src    { background: var(--surface-2); }
 
-/* PC = 表（従来） */
 #historyMount table { width: 100%; border-collapse: separate; border-spacing: 0; }
 #historyMount thead th { position: sticky; top: 0; background: linear-gradient(180deg, var(--surface-2), var(--surface)); color: var(--text-weak); padding: 12px 14px; border-bottom: 1px solid var(--border); }
 #historyMount tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
 #historyMount tbody tr:hover { background: color-mix(in hsl, var(--brand) 6%, transparent); }
 
-/* モバイル = カード */
 .history-cards { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .hcard {
   border: 1px solid var(--border); border-radius: 14px;
@@ -400,14 +396,8 @@ tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent
 .hcard .resched-editor { display: inline-flex; gap: 6px; align-items: center; }
 .hcard .resched-editor input[type="datetime-local"] { height: 32px; }
 
-/* Buttons inside history */
 .memo-edit, .resched-btn, .do-resched, .cancel-resched {
   height: 32px; padding: 0 10px; border-radius: 8px; font-weight: 800;
-}
-
-/* スマホ専用微調整 */
-@media (max-width: 680px) {
-  .history-cards { grid-template-columns: 1fr; }
 }
 
 /* Pager */
@@ -452,7 +442,6 @@ tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent
 
 /* Drawer open時のスクロールロック */
 body.drawer-open { overflow: hidden; }
-body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 
 /* ===== Loading Overlay ===== */
 #loading[aria-hidden="false"] {
@@ -469,9 +458,22 @@ body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 #loading .retry { height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--brand); background: var(--brand); color: #fff; font-weight: 800; }
 #loading .retry:hover { background: var(--brand-600); }
 
+/* ===== Saving Overlay ===== */
+#saving[aria-hidden="false"] {
+  position: fixed; inset: 0; z-index: 120;
+  display: grid; place-items: center;
+  background: color-mix(in hsl, #000 55%, transparent);
+  backdrop-filter: blur(6px) saturate(120%);
+  pointer-events: auto; /* クリックを吸収して他操作不可に */
+}
+#saving[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
+.saving-card { width: min(420px, 92vw); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); padding: 24px 20px; text-align: center; }
+.saving-text { margin: 6px 0 2px; font-weight: 800; letter-spacing: .02em; }
+body.is-saving { overflow: hidden; } /* スクロールも禁止 */
+
 /* Print */
 @media print {
-  header, #pager, #cardsSection, #drawer, #loading { display: none !important; }
+  header, #pager, #cardsSection, #drawer, #loading, #saving { display: none !important; }
   body { background: #fff; color: #000; }
   .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
 }
@@ -481,7 +483,7 @@ mark.hl { background: color-mix(in hsl, var(--accent) 42%, transparent); color: 
 td.empty, .empty-card { text-align: center; color: var(--muted); padding: 24px 10px; font-weight: 700; }
 
 /* Toasts */
-#toastwrap { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 9999; }
+#toastwrap { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 130; }
 .toast { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow-2); font-weight: 700; letter-spacing: .02em; }
 .toast.success { border-color: color-mix(in hsl, var(--ok) 40%, var(--border)); }
 .toast.warn    { border-color: color-mix(in hsl, var(--warn) 40%, var(--border)); }
