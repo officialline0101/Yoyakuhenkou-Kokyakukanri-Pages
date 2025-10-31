@@ -8,21 +8,44 @@ const LOYAL_MIN_VISITS = 5;
 const NEW_THRESHOLD_DAYS = 30;
 const TICKET_EXPIRY_SOON_DAYS = 30;
 
+// ===== Settings (localStorage) =====
+const LS = {
+  theme: 'crm_theme',          // 'system' | 'light' | 'dark'
+  cols:  'crm_cols',           // boolean[] 長さ=列数
+  view:  'crm_viewMode',       // 'auto' | 'mobile' | 'desktop'
+  per:   'crm_perPage',        // 20/50/100...
+  sort:  'crm_sort'            // e.g. 'lastReservation:desc'
+};
+const settings = {
+  get theme(){ return localStorage.getItem(LS.theme) || 'system'; },
+  set theme(v){ localStorage.setItem(LS.theme, v); applyTheme(); },
+  get cols(){ try { return JSON.parse(localStorage.getItem(LS.cols) || '[]'); } catch { return []; } },
+  set cols(arr){ localStorage.setItem(LS.cols, JSON.stringify(arr)); applyColumnVisibility(); },
+  get view(){ return localStorage.getItem(LS.view) || 'auto'; },
+  set view(v){ localStorage.setItem(LS.view, v); document.body.classList.remove('view-auto','view-mobile','view-desktop'); document.body.classList.add('view-'+v); selectViewRadio(v); },
+  get per(){ return Number(localStorage.getItem(LS.per) || '20'); },
+  set per(n){ localStorage.setItem(LS.per, String(n)); state.perPage = n; state.page = 1; render(); showToast(`1ページ ${n} 件表示`, 'success'); },
+  get sort(){ return localStorage.getItem(LS.sort) || 'lastReservation:desc'; },
+  set sort(s){ localStorage.setItem(LS.sort, s); }
+};
+
 const state = {
   customers: [],
   reservations: [],
   filtered: [],
-  page: 1, perPage: 20,
+  page: 1, perPage: settings.per,
   sortKey: 'lastReservation', sortDir: 'desc',
   selectedCustomerKey: null,
   distinctMenus: [],
   dupes: [],
   editMode: false,
-  editSnapshot: null
+  editSnapshot: null,
+  focusIndex: -1 // 現ページ内のフォーカス行
 };
 
 // ===== Util =====
 const qs = s => document.querySelector(s);
+const qsa = s => Array.from(document.querySelectorAll(s));
 const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 const z = n => String(n).padStart(2,'0');
 const fmt = iso => {
@@ -36,12 +59,77 @@ function getKey(obj){ return (obj && (obj.key || (obj.email || obj.phone || obj.
 const parseAnyDate = v => v ? new Date(v) : null;
 const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`;
 
+// 高速化：デバウンス
+function debounce(fn, wait=300){
+  let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn.apply(null,args), wait); };
+}
+
+// 検索ハイライト
+function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
+function highlightText(text, query){
+  const s = String(text ?? '');
+  const q = String(query ?? '').trim();
+  if(!q) return esc(s);
+  const terms = q.split(/\s+/).filter(Boolean).map(escapeRegExp);
+  if(terms.length===0) return esc(s);
+  try{
+    const r = new RegExp(terms.join('|'), 'ig');
+    let out = '', last = 0;
+    s.replace(r, (m, _1, idx) => {
+      out += esc(s.slice(last, idx)) + `<mark class="hl">${esc(m)}</mark>`;
+      last = idx + m.length;
+      return m;
+    });
+    out += esc(s.slice(last));
+    return out;
+  }catch{ return esc(s); }
+}
+
 // GET helper
 async function fetchJson(url){
   const res = await fetch(url, { method:'GET' });
   const j = await res.json().catch(()=>null);
   if(!res.ok || !j || !j.ok) throw new Error(j?.error || `HTTP ${res.status}`);
   return j.data || [];
+}
+
+// ===== Toasts =====
+function ensureToastHost(){
+  if (!document.getElementById('toastwrap')) {
+    const w = document.createElement('div');
+    w.id = 'toastwrap';
+    w.setAttribute('aria-live','polite'); // SRに伝える
+    document.body.appendChild(w);
+  }
+}
+function showToast(msg, type=''){
+  ensureToastHost();
+  const w = document.getElementById('toastwrap');
+  const t = document.createElement('div');
+  t.className = `toast ${type||''}`;
+  t.textContent = msg;
+  w.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; }, 2600);
+  setTimeout(()=>{ t.remove(); }, 3100);
+}
+
+// ===== Theme =====
+function applyTheme(){
+  const v = settings.theme; // 'system'|'light'|'dark'
+  const root = document.documentElement;
+  if (v === 'system') {
+    root.removeAttribute('data-theme');
+    showToast('テーマ：システムに従う', 'success');
+  } else {
+    root.setAttribute('data-theme', v);
+    showToast(`テーマ：${v==='dark'?'ダーク':'ライト'}`, 'success');
+  }
+}
+function toggleThemeQuick(){
+  const v = settings.theme;
+  // system→dark→light→dark...ではなく、実用上は dark/light のトグルを好む
+  const next = (v === 'dark') ? 'light' : 'dark';
+  settings.theme = next;
 }
 
 // ===== Global Loading Overlay =====
@@ -106,6 +194,11 @@ async function loadData(){
   state.dupes = findDuplicates(state.customers);
   renderDupes();
 
+  // 設定復元
+  applyColumnVisibility();
+  // ページサイズ復元
+  state.perPage = settings.per;
+
   applyFilter();
 }
 
@@ -133,8 +226,10 @@ function enhanceCustomer(c){
 }
 
 // ====== Filter / Sort / Render ======
+const applyFilterDebounced = debounce(applyFilter, 300);
+
 function applyFilter(){
-  const q = qs('#q').value.trim().toLowerCase();
+  const qVal = qs('#q').value.trim().toLowerCase();
   const from = qs('#from').value ? new Date(qs('#from').value) : null;
   const to   = qs('#to').value   ? new Date(qs('#to').value)   : null; if (to) to.setHours(23,59,59,999);
   const menu = qs('#menuFilter').value;
@@ -143,7 +238,7 @@ function applyFilter(){
   const followOnly = qs('#followOnly').checked;
 
   let arr = state.customers.filter(c =>
-    !q || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(q))
+    !qVal || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(qVal))
   );
 
   if (tagQ) arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
@@ -182,18 +277,19 @@ function applySort(){
     if (typeof va==='number' && typeof vb==='number') return (va - vb)*m;
     return String(va).localeCompare(String(vb))*m;
   });
+  settings.sort = qs('#sort').value;
   state.page=1;
   render();
 }
 
 function render(){ renderTable(); renderCards(); renderPager(); }
 
-function makeContactCell(r){
+function makeContactCell(r, qVal){
   const phone = esc(r.phone||'');
   const mail = esc(r.email||'');
   const items = [];
-  if (phone) items.push(`<a href="tel:${phone}">📞 ${phone}</a>`);
-  if (mail) items.push(`<a href="mailto:${mail}">✉️ ${mail}</a>`);
+  if (phone) items.push(`<a href="tel:${phone}">📞 ${highlightText(r.phone||'', qVal)}</a>`);
+  if (mail) items.push(`<a href="mailto:${mail}">✉️ ${highlightText(r.email||'', qVal)}</a>`);
   return `<div class="cell-contacts">${items.join('')}</div>`;
 }
 
@@ -206,8 +302,17 @@ function makeActionLinks(r){
 
 function renderTable(){
   const tb = qs('#customers tbody'); tb.innerHTML='';
+  const qVal = qs('#q').value.trim();
   const start=(state.page-1)*state.perPage, rows=state.filtered.slice(start, start+state.perPage);
 
+  if (rows.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="empty" colspan="9">該当する顧客が見つかりません。条件や期間、メニューを見直してください。</td>`;
+    tb.appendChild(tr);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
   for(const r of rows){
     const tr=document.createElement('tr');
 
@@ -223,25 +328,37 @@ function renderTable(){
     })();
 
     tr.innerHTML = `
-      <td>${esc(r.name || '')}${r._idleDays!=null && r._idleDays>=FOLLOWUP_THRESHOLD_DAYS ? ' <span class="badge idle">要フォロー</span>' : ''}</td>
-      <td>${makeContactCell(r)}</td>
-      <td>${esc(r.address||'')}</td>
+      <td>${highlightText(r.name || '', qVal)}${r._idleDays!=null && r._idleDays>=FOLLOWUP_THRESHOLD_DAYS ? ' <span class="badge idle">要フォロー</span>' : ''}</td>
+      <td>${makeContactCell(r, qVal)}</td>
+      <td>${highlightText(r.address||'', qVal)}</td>
       <td>${fmt(r.lastReservation)}${lastBadge}</td>
       <td>${r.totalReservations ?? 0}</td>
-      <td>${esc(r.lastMenu || r.lastItems || '')}</td>
-      <td>${esc(r.staff || '')}</td>
+      <td>${highlightText(r.lastMenu || r.lastItems || '', qVal)}</td>
+      <td>${highlightText(r.staff || '', qVal)}</td>
       <td><div class="tags">${tagsHtml} ${autoHtml}</div></td>
       <td class="cell-actions">${makeActionLinks(r)}</td>
     `;
     tr.addEventListener('click', (e)=>{ if (e.target.tagName === 'A') return; openDrawer(r); });
-    tb.appendChild(tr);
+    frag.appendChild(tr);
   }
+  tb.appendChild(frag);
+  updateRowFocus(); // 再描画時にフォーカス行の見た目を再適用
 }
 
 function renderCards(){
   const wrap = qs('#cardsSection'); wrap.innerHTML='';
+  const qVal = qs('#q').value.trim();
   const start=(state.page-1)*state.perPage, rows=state.filtered.slice(start, start+state.perPage);
 
+  if (rows.length === 0) {
+    const div = document.createElement('div');
+    div.className = 'empty-card';
+    div.textContent = '該当する顧客が見つかりません。条件を調整してください。';
+    wrap.appendChild(div);
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
   for(const r of rows){
     const div=document.createElement('div'); div.className='card';
 
@@ -256,16 +373,17 @@ function renderCards(){
     })();
 
     div.innerHTML = `
-      <div class="name">${esc(r.name || r.email || r.phone || '')}</div>
+      <div class="name">${highlightText(r.name || r.email || r.phone || '', qVal)}</div>
       <div class="meta">最終来店：${fmt(r.lastReservation)}${lastBadge} / 回数：${r.totalReservations ?? 0}</div>
-      <div>直近メニュー：${esc(r.lastMenu || r.lastItems || '')}</div>
-      <div>担当者：${esc(r.staff || '-')}</div>
+      <div>直近メニュー：${highlightText(r.lastMenu || r.lastItems || '', qVal)}</div>
+      <div>担当者：${highlightText(r.staff || '-', qVal)}</div>
       <div class="tags">${(r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')} ${autoHtml}</div>
       <div style="margin-top:8px">${makeActionLinks(r)}</div>
     `;
     div.addEventListener('click', (e)=>{ if (e.target.tagName !== 'A') openDrawer(r); });
-    wrap.appendChild(div);
+    frag.appendChild(div);
   }
+  wrap.appendChild(frag);
 }
 
 function renderPager(){
@@ -296,7 +414,7 @@ function openDrawer(customer){
   }
   renderSourceStats(srcCounts);
 
-  // 履歴テーブル（モバイル積み上げ対応）
+  // 履歴テーブル
   const tb = qs('#history tbody'); if (!tb) { console.warn('#history tbody not found'); return; }
   tb.innerHTML='';
   const now = Date.now();
@@ -343,7 +461,8 @@ function openDrawer(customer){
         await loadData();
         const again = state.customers.find(c => getKey(c) === keepKey);
         if (again) openDrawer(again);
-      }catch(err){ alert('保存に失敗しました'); console.error(err); }
+        showToast('メモを保存しました', 'success');
+      }catch(err){ console.error(err); showToast('保存に失敗しました', 'error'); }
     });
   });
   tb.querySelectorAll('.resched-btn').forEach(btn=>{
@@ -367,17 +486,17 @@ function openDrawer(customer){
       const tr = e.target.closest('tr');
       const resvId = tr?.dataset?.resvId || '';
       const dt = tr.querySelector('.resched-dt')?.value;
-      if (!dt) return alert('日時を選択してください');
+      if (!dt) return showToast('日時を選択してください', 'warn');
       try{
         await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
-        alert('日時を変更しました');
+        showToast('日時を変更しました', 'success');
         const keepKey = state.selectedCustomerKey;
         await loadData();
         const again = state.customers.find(c => getKey(c) === keepKey);
         if (again) openDrawer(again);
       }catch(err){
         console.error(err);
-        alert('変更に失敗しました（営業時間外・重複・過去予約等の可能性）');
+        showToast('変更に失敗しました（営業時間外・重複・過去予約等の可能性）','error');
       }
     });
   });
@@ -501,13 +620,14 @@ async function saveNote(){
   try{
     await postJSON(body);
     qs('#saveStatus').textContent = '保存しました。';
+    showToast('顧客情報を保存しました', 'success');
     const keepKey = state.selectedCustomerKey;
     await loadData();
     const again = state.customers.find(c => getKey(c) === keepKey);
     if (again) openDrawer(again);
     setEditMode(false);
   }catch(e){
-    console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。';
+    console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。'; showToast('保存に失敗しました', 'error');
   }finally{
     qs('#saveNote').disabled = false;
   }
@@ -597,6 +717,7 @@ function saveCurrentSegment(){
   localStorage.setItem(key, JSON.stringify(list));
   loadSavedSegments();
   qs('#segmentName').value='';
+  showToast('条件を保存しました', 'success');
 }
 function loadSavedSegments(){
   const key='crm_segments';
@@ -619,6 +740,7 @@ function applySelectedSegment(){
   qs('#followOnly').checked = !!s.follow;
   qs('#sort').value = s.sort||'lastReservation:desc';
   applyFilter();
+  showToast('条件を適用しました', 'success');
 }
 function deleteSelectedSegment(){
   const key='crm_segments';
@@ -630,6 +752,7 @@ function deleteSelectedSegment(){
   list.splice(idx,1);
   localStorage.setItem(key, JSON.stringify(list));
   loadSavedSegments();
+  showToast('削除しました', 'success');
 }
 
 // ===== CSV =====
@@ -657,6 +780,7 @@ function exportCsv(){
   const csv = [headers,...rows].map(line=>line.map(v=>(/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v)).join(',')).join('\n');
   const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   const a=document.createElement('a'); a.href=url; a.download=`customers_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
+  showToast('CSVを書き出しました', 'success');
 }
 
 // ===== token表示（任意） =====
@@ -669,19 +793,216 @@ async function maybeHandleTokenView(){
   }catch(e){ qs('#tokenResult').textContent='読み込みに失敗しました。'; }
 }
 
+// ===== Column Visibility =====
+function getColumnsMeta(){
+  // 現在のヘッダーから列名を取得（9列想定だが動的対応）
+  const ths = qsa('#customers thead th');
+  return ths.map((th, i)=>({ index:i+1, label: th.textContent.trim() || `列${i+1}` }));
+}
+function applyColumnVisibility(){
+  const cols = settings.cols;
+  const meta = getColumnsMeta();
+  const table = qs('#customers');
+  if (!table) return;
+  // まず既存 hide-col-* を外す
+  for(let i=1;i<=meta.length;i++){ table.classList.remove(`hide-col-${i}`); }
+  // 設定が空なら全部表示で終了
+  if (!Array.isArray(cols) || cols.length===0) return;
+  // false の列に hide クラスを当てる
+  meta.forEach((m,idx)=>{
+    const visible = cols[idx] !== false; // デフォルトtrue
+    if (!visible) table.classList.add(`hide-col-${m.index}`);
+  });
+}
+function openColumnMenuAt(x, y){
+  let menu = document.getElementById('colmenu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.id = 'colmenu';
+    menu.setAttribute('role','dialog');
+    menu.setAttribute('aria-label','列の表示/非表示');
+    document.body.appendChild(menu);
+  }
+  const meta = getColumnsMeta();
+  const cols = settings.cols;
+  menu.innerHTML = '';
+  meta.forEach((m, idx)=>{
+    const row = document.createElement('label');
+    row.className = 'row';
+    const ck = document.createElement('input');
+    ck.type='checkbox';
+    const visible = cols[idx] !== false; // 未定義はtrue
+    ck.checked = visible;
+    ck.addEventListener('change', ()=>{
+      const next = (Array.isArray(settings.cols) && settings.cols.slice(0, meta.length)) || new Array(meta.length).fill(true);
+      next[idx] = ck.checked;
+      settings.cols = next;
+    });
+    const span = document.createElement('span'); span.textContent = m.label;
+    row.appendChild(ck); row.appendChild(span);
+    menu.appendChild(row);
+  });
+  menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+  menu.style.top  = `${Math.min(y, window.innerHeight - 260)}px`;
+  menu.hidden = false;
+
+  const onDismiss = (ev)=>{
+    if (ev.type==='keydown' && ev.key!=='Escape') return;
+    menu.hidden = true;
+    document.removeEventListener('mousedown', onDocClick);
+    document.removeEventListener('keydown', onDismiss);
+  };
+  const onDocClick = (ev)=>{ if (!menu.contains(ev.target)) onDismiss({type:'keydown', key:'Escape'}); };
+  document.addEventListener('mousedown', onDocClick);
+  document.addEventListener('keydown', onDismiss);
+}
+
+// ===== Command Palette =====
+function ensureKbar(){
+  if (document.getElementById('kbar')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'kbar'; wrap.hidden = true;
+  wrap.innerHTML = `
+    <div class="kbar-card" role="dialog" aria-modal="true" aria-labelledby="kbarTitle">
+      <div id="kbarTitle" style="position:absolute;left:-9999px;">コマンドパレット</div>
+      <input class="kbar-input" type="search" placeholder="コマンドを検索（例：CSV、テーマ、列表示、モード、件数…）" />
+      <div class="kbar-list" role="listbox"></div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const input = wrap.querySelector('.kbar-input');
+  const list  = wrap.querySelector('.kbar-list');
+
+  const commands = () => ([
+    { title:'CSVをエクスポート', run: exportCsv },
+    { title:'テーマ：ライトにする', run: ()=>{ settings.theme='light'; } },
+    { title:'テーマ：ダークにする',  run: ()=>{ settings.theme='dark'; } },
+    { title:'テーマ：システムに従う', run: ()=>{ settings.theme='system'; } },
+    { title:'表示モード：自動', run: ()=>{ settings.view='auto'; selectViewRadio('auto'); } },
+    { title:'表示モード：モバイル', run: ()=>{ settings.view='mobile'; selectViewRadio('mobile'); } },
+    { title:'表示モード：PC', run: ()=>{ settings.view='desktop'; selectViewRadio('desktop'); } },
+    { title:'表示件数：20', run: ()=>{ settings.per=20; } },
+    { title:'表示件数：50', run: ()=>{ settings.per=50; } },
+    { title:'表示件数：100', run: ()=>{ settings.per=100; } },
+    { title:'列の表示/非表示…', run: ()=>{ const r = qs('#customers thead'); const rect = r.getBoundingClientRect(); openColumnMenuAt(rect.left + 12, rect.bottom + 6); } },
+    { title:'クイック：新規のみ', run: ()=>{ qs('#quickSeg').value='new'; applyFilter(); } },
+    { title:'クイック：常連のみ', run: ()=>{ qs('#quickSeg').value='loyal'; applyFilter(); } },
+    { title:'クイック：休眠のみ', run: ()=>{ qs('#quickSeg').value='idle'; applyFilter(); } },
+    { title:'クイック：解除',     run: ()=>{ qs('#quickSeg').value=''; applyFilter(); } },
+    { title:'重複候補を表示', run: ()=> showDupes(true) },
+    { title:'重複候補を閉じる', run: ()=> showDupes(false) },
+    { title:'検索にフォーカス', run: ()=>{ qs('#q').focus(); } },
+  ]);
+
+  function open(){
+    wrap.hidden = false;
+    input.value = '';
+    renderList('');
+    setTimeout(()=>input.focus(), 0);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+  }
+  function close(){
+    wrap.hidden = true;
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onClickOutside);
+  }
+  function onClickOutside(e){ if (e.target.closest('#kbar .kbar-card')) return; close(); }
+
+  function renderList(query){
+    const q = query.trim().toLowerCase();
+    const items = commands().filter(c => !q || c.title.toLowerCase().includes(q));
+    list.innerHTML = '';
+    items.forEach((c,i)=>{
+      const div = document.createElement('div');
+      div.className = 'kbar-item';
+      div.setAttribute('role','option');
+      div.setAttribute('aria-selected', i===0 ? 'true' : 'false');
+      div.innerHTML = `<span>${esc(c.title)}</span>`;
+      div.addEventListener('mouseenter', ()=> selectIndex(i));
+      div.addEventListener('click', ()=>{ c.run(); close(); });
+      list.appendChild(div);
+    });
+    kbarIndex = 0;
+  }
+
+  let kbarIndex = 0;
+  function selectIndex(i){
+    const items = list.querySelectorAll('.kbar-item');
+    if (items.length===0) return;
+    kbarIndex = (i + items.length) % items.length;
+    items.forEach((el,idx)=> el.setAttribute('aria-selected', idx===kbarIndex ? 'true' : 'false'));
+    items[kbarIndex]?.scrollIntoView({block:'nearest'});
+  }
+
+  function onKey(e){
+    if (e.key==='Escape'){ close(); return; }
+    if (e.key==='ArrowDown'){ e.preventDefault(); selectIndex(kbarIndex+1); return; }
+    if (e.key==='ArrowUp'){ e.preventDefault(); selectIndex(kbarIndex-1); return; }
+    if (e.key==='Enter'){
+      const items = list.querySelectorAll('.kbar-item');
+      const sel = items[kbarIndex];
+      if (sel){ sel.click(); }
+      return;
+    }
+  }
+
+  input.addEventListener('input', ()=> renderList(input.value));
+  wrap.openKbar = open;
+  wrap.closeKbar = close;
+}
+function openKbar(){ ensureKbar(); document.getElementById('kbar').openKbar(); }
+
+// ===== Keyboard Navigation (table rows) =====
+function getRenderedRowEls(){
+  return qsa('#customers tbody tr');
+}
+function updateRowFocus(){
+  const rows = getRenderedRowEls();
+  rows.forEach(r=>r.classList.remove('row-focus'));
+  if (state.focusIndex<0 || state.focusIndex>=rows.length) return;
+  rows[state.focusIndex].classList.add('row-focus');
+}
+function moveFocus(delta){
+  const rows = getRenderedRowEls();
+  if (rows.length===0) return;
+  if (state.focusIndex===-1) state.focusIndex = 0;
+  else state.focusIndex = Math.min(rows.length-1, Math.max(0, state.focusIndex + delta));
+  updateRowFocus();
+}
+function openFocused(){
+  const idx = state.focusIndex;
+  if (idx<0) return;
+  const abs = (state.page-1)*state.perPage + idx;
+  const r = state.filtered[abs];
+  if (r) openDrawer(r);
+}
+function selectViewRadio(v){
+  const r = document.querySelector(`.view-toggle input[value="${v}"]`);
+  if (r) r.checked = true;
+}
+
 // ===== Events =====
 function attach(){
+  // 入力 → デバウンス
   ['#q','#from','#to','#menuFilter','#tagFilter','#quickSeg','#followOnly'].forEach(sel=>{
-    qs(sel).addEventListener('input', applyFilter);
-    qs(sel).addEventListener('change', applyFilter);
+    const el = qs(sel);
+    el.addEventListener('input', applyFilterDebounced);
+    el.addEventListener('change', applyFilter);
   });
-  qs('#sort').addEventListener('change', applySort);
+  // ソート
+  qs('#sort').addEventListener('change', ()=>{
+    applySort();
+  });
 
+  // 再読込
   qs('#reload').addEventListener('click', async ()=>{
-    try { setGlobalLoading(true, '更新中…'); await loadData(); }
+    try { setGlobalLoading(true, '更新中…'); await loadData(); showToast('最新データを取得しました', 'success'); }
     finally { setGlobalLoading(false); }
   });
 
+  // CSV
   qs('#exportCsv').addEventListener('click', exportCsv);
 
   // 編集ゲート：編集/保存/キャンセル
@@ -693,26 +1014,86 @@ function attach(){
   });
   qs('#saveNote').addEventListener('click', saveNote);
 
+  // ビュー切替（永続化）
   document.querySelectorAll('input[name="view"]').forEach(r=>{
     r.addEventListener('change', ()=>{
+      const v = r.value;
       document.body.classList.remove('view-auto','view-mobile','view-desktop');
-      document.body.classList.add('view-'+r.value);
+      document.body.classList.add('view-'+v);
+      settings.view = v;
     });
   });
+  // 初期ビュー復元
+  document.body.classList.remove('view-auto','view-mobile','view-desktop');
+  document.body.classList.add('view-'+settings.view);
+  selectViewRadio(settings.view);
 
+  // セグメント
   qs('#saveSegment').addEventListener('click', saveCurrentSegment);
   qs('#applySegment').addEventListener('click', applySelectedSegment);
   qs('#deleteSegment').addEventListener('click', deleteSelectedSegment);
   loadSavedSegments();
 
+  // 重複候補
   qs('#toggleDuplicates').addEventListener('click', ()=>showDupes(true));
   qs('#dupesPanel .close').addEventListener('click', ()=>showDupes(false));
   qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
+
+  // テーマ適用（初回）
+  if (settings.theme !== 'system') applyTheme();
+
+  // コマンドパレット
+  ensureKbar();
+
+  // テーブルヘッダーの右クリックで列メニュー
+  const thead = qs('#customers thead');
+  thead.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openColumnMenuAt(e.clientX, e.clientY); });
+
+  // キーボードショートカット
+  document.addEventListener('keydown', (e)=>{
+    const tag = (e.target.tagName || '').toLowerCase();
+    const typing = tag==='input' || tag==='textarea' || e.target.isContentEditable;
+
+    // / で検索フォーカス（入力中は無効）
+    if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      qs('#q').focus();
+      return;
+    }
+    // ⌘/Ctrl + K = コマンドパレット
+    if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); openKbar(); return;
+    }
+    // Alt + T = テーマトグル
+    if (e.key.toLowerCase() === 't' && e.altKey) {
+      e.preventDefault(); toggleThemeQuick(); return;
+    }
+    // 行選択（表）
+    if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      moveFocus(e.key==='ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (!typing && e.key === 'Enter') {
+      openFocused();
+      return;
+    }
+    // ESC で各種モーダル類を閉じる（優先度：KBar → 重複 → ドロワー）
+    if (e.key === 'Escape') {
+      const kbar = document.getElementById('kbar');
+      if (kbar && !kbar.hidden){ kbar.closeKbar(); return; }
+      const dupesOpen = qs('#dupesPanel')?.getAttribute('aria-hidden')==='false';
+      if (dupesOpen){ showDupes(false); return; }
+      const drawerOpen = qs('#drawer')?.getAttribute('aria-hidden')==='false';
+      if (drawerOpen){ closeDrawer(); return; }
+    }
+  });
 }
 
 // ===== Init =====
 (async function init(){
   try {
+    ensureToastHost();
     setGlobalLoading(true, 'データを読み込んでいます…');
     attach();
     wireLoadingRetry();
