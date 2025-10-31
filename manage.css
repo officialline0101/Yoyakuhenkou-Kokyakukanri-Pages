@@ -202,6 +202,12 @@ select {
 .view-toggle label { position: relative; padding: 10px 12px; border-radius: 999px; cursor: pointer; user-select: none; color: var(--text-weak); font-weight: 700; }
 .view-toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .view-toggle label:has(input:checked) { background: var(--surface); color: var(--text); box-shadow: 0 10px 20px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.02); }
+/* :has() 非対応端末フォールバック（JSで .checked を付与） */
+.view-toggle label.checked {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 20px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.02);
+}
 
 /* Buttons */
 button {
@@ -469,7 +475,8 @@ body.drawer-open { overflow: hidden; }
 #saving[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
 .saving-card { width: min(420px, 92vw); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); padding: 24px 20px; text-align: center; }
 .saving-text { margin: 6px 0 2px; font-weight: 800; letter-spacing: .02em; }
-body.is-saving { overflow: hidden; } /* スクロールも禁止 */
+body.is-saving { overflow: hidden; }
+html.is-saving, body.is-saving { height: 100%; overflow: hidden; } /* スクロールさらに抑止 */
 
 /* Print */
 @media print {
