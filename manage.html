@@ -25,36 +25,70 @@
   <header>
     <h1>顧客管理</h1>
 
+    <!-- 行1：フィルター群（各項目にタイトル付き） -->
     <div class="tools">
-      <input id="q" type="search" placeholder="名前・メール・電話で検索" />
-      <input id="from" type="date" />
-      <span class="tilde">〜</span>
-      <input id="to" type="date" />
+      <label class="field field-q">
+        <span class="title">検索キーワード</span>
+        <input id="q" type="search" placeholder="名前・メール・電話で検索" />
+      </label>
 
-      <select id="menuFilter"><option value="">メニュー：すべて</option></select>
-      <input id="tagFilter" type="search" placeholder="タグで絞り込み（例：VIP）" />
+      <label class="field field-from">
+        <span class="title">期間（開始）</span>
+        <input id="from" type="date" />
+      </label>
 
-      <select id="quickSeg">
-        <option value="">クイック：すべて</option>
-        <option value="new">新規（30日以内/回数=1）</option>
-        <option value="loyal">常連（回数≥5 & 90日以内）</option>
-        <option value="idle">休眠（最終来店90日以上）</option>
-      </select>
+      <div class="field field-tilde">
+        <span class="title">&nbsp;</span>
+        <span class="tilde">〜</span>
+      </div>
 
-      <label class="inline"><input id="followOnly" type="checkbox" /> 要フォローのみ</label>
+      <label class="field field-to">
+        <span class="title">期間（終了）</span>
+        <input id="to" type="date" />
+      </label>
 
-      <select id="sort">
-        <option value="lastReservation:desc">最終来店 新→旧</option>
-        <option value="lastReservation:asc">最終来店 旧→新</option>
-        <option value="totalReservations:desc">来店回数 多→少</option>
-        <option value="name:asc">名前 A→Z</option>
-      </select>
+      <label class="field field-menu">
+        <span class="title">メニュー</span>
+        <select id="menuFilter"><option value="">すべて</option></select>
+      </label>
 
-      <button id="reload">再読込</button>
-      <button id="exportCsv">CSV</button>
+      <label class="field field-tag">
+        <span class="title">タグ</span>
+        <input id="tagFilter" type="search" placeholder="例：VIP" />
+      </label>
+
+      <label class="field field-quick">
+        <span class="title">クイック</span>
+        <select id="quickSeg">
+          <option value="">すべて</option>
+          <option value="new">新規（30日以内/回数=1）</option>
+          <option value="loyal">常連（回数≥5 & 90日以内）</option>
+          <option value="idle">休眠（最終来店90日以上）</option>
+        </select>
+      </label>
+
+      <label class="field field-sort">
+        <span class="title">並び替え</span>
+        <select id="sort">
+          <option value="lastReservation:desc">最終来店 新→旧</option>
+          <option value="lastReservation:asc">最終来店 旧→新</option>
+          <option value="totalReservations:desc">来店回数 多→少</option>
+          <option value="name:asc">名前 A→Z</option>
+        </select>
+      </label>
+
+      <div class="field field-reload">
+        <span class="title">データ更新</span>
+        <button id="reload">再読込</button>
+      </div>
+
+      <div class="field field-csv">
+        <span class="title">エクスポート</span>
+        <button id="exportCsv">CSV</button>
+      </div>
     </div>
 
-    <!-- 2行目：表示切替のみ残す -->
+    <!-- 行2：表示切替のみ -->
     <div class="tools row2">
       <div class="view-toggle" role="group" aria-label="表示切替">
         <label><input type="radio" name="view" value="auto" checked> 自動</label>
@@ -67,6 +101,7 @@
   <main>
     <!-- PC向け：表 -->
     <section id="customersSection" class="table-wrap">
+      <h2 class="section-title">顧客一覧（PC表示）</h2>
       <table id="customers">
         <thead>
           <tr>
@@ -87,9 +122,11 @@
     </section>
 
     <!-- モバイル向け：カード -->
-    <section id="cardsSection" class="cards" aria-hidden="true"></section>
+    <section id="cardsSection" class="cards" aria-hidden="true">
+      <h2 class="section-title">顧客一覧（モバイル表示）</h2>
+    </section>
 
-    <!-- 右ドロワー：顧客プロファイル + 来店履歴（PCは2カラム） -->
+    <!-- 右ドロワー -->
     <section id="drawer" aria-hidden="true">
       <div class="drawer-inner">
         <button class="close" aria-label="閉じる">×</button>
@@ -104,6 +141,7 @@
             <div id="sourceStats" class="srcstats" aria-live="polite"></div>
 
             <div class="note-editor">
+              <h3>プロフィール編集</h3>
               <div class="grid">
                 <label>氏名</label>           <input id="editName" type="text" />
                 <label>氏名（カナ）</label>   <input id="editKana" type="text" />
@@ -151,29 +189,16 @@
             </div>
           </div>
 
-          <!-- 右：来店履歴 -->
+          <!-- 右：来店履歴（PC=表 / モバイル=カード をJSで生成） -->
           <div class="history-col">
             <h3>来店履歴</h3>
-            <table id="history">
-              <thead>
-                <tr>
-                  <th>日時</th>
-                  <th>メニュー</th>
-                  <th>項目</th>
-                  <th>流入元</th>
-                  <th>メモ</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+            <div id="historyMount" aria-live="polite"></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ※重複候補パネルは削除済み -->
-    <!-- ※予約メール token 表示（任意） -->
+    <!-- 任意：予約メール token 表示 -->
     <section id="tokenView" style="display:none;">
       <h2>予約リンクからの表示</h2>
       <pre id="tokenResult"></pre>
