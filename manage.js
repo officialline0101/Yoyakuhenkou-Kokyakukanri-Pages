@@ -28,7 +28,13 @@ const fmt = iso => {
   const d=new Date(iso); if(isNaN(d)) return iso;
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 };
-const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
+const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim(); // 互換のため残す
+
+// 予約/顧客の比較キーを一元化（予約は r.key 優先、なければ email/phone/name）
+function getKey(obj){
+  return (obj && (obj.key || (obj.email || obj.phone || obj.name)))?.toLowerCase().trim() || '';
+}
+
 const parseAnyDate = v => v ? new Date(v) : null;
 const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`; // "YYYY-MM-DDTHH:mm" -> +09:00 付
 
@@ -152,9 +158,9 @@ function applyFilter(){
 
   if (from || to || menu) {
     const match = (cust) => {
-      const k = keyOf(cust);
+      const k = getKey(cust);
       return state.reservations.some(r => {
-        if (keyOf(r) !== k) return false;
+        if (getKey(r) !== k) return false;
         const d = r.startIso ? new Date(r.startIso) : null;
         if (from && (!d || d < from)) return false;
         if (to   && (!d || d > to))   return false;
@@ -292,10 +298,11 @@ function renderPager(){
 
 // ===== Drawer =====
 function openDrawer(customer){
-  const k = keyOf(customer); state.selectedCustomerKey = k;
+  const k = getKey(customer);                   // ← 一元化キーを使用
+  state.selectedCustomerKey = k;
 
   const hist = state.reservations
-    .filter(r => keyOf(r)===k)
+    .filter(r => getKey(r) === k)               // ← 予約側も同じ関数で判定
     .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
   // 流入元カウント
@@ -307,7 +314,9 @@ function openDrawer(customer){
   renderSourceStats(srcCounts);
 
   // 履歴テーブル描画
-  const tb = qs('#history tbody'); tb.innerHTML='';
+  const tb = qs('#history tbody');
+  if (!tb) { console.warn('#history tbody not found'); return; }
+  tb.innerHTML='';
   const now = Date.now();
   for(const h of hist){
     const canResched = h.startMs && h.startMs > now;
@@ -315,7 +324,7 @@ function openDrawer(customer){
     tr.dataset.resvId = h.resvId || '';
     tr.innerHTML = `
       <td>${fmt(h.startIso)}</td>
-      <td>${esc(h.menu)}</td>
+      <td>${esc(h.menu || '')}</td>
       <td>${esc(h.items||h.opts||'')}</td>
       <td>${esc(h.medium || '')}</td>
       <td>
@@ -350,7 +359,7 @@ function openDrawer(customer){
         // 再読込（メモ同期を確実に）
         const keepKey = state.selectedCustomerKey;
         await loadData();
-        const again = state.customers.find(c => keyOf(c) === keepKey);
+        const again = state.customers.find(c => getKey(c) === keepKey);
         if (again) openDrawer(again);
       }catch(err){ alert('保存に失敗しました'); console.error(err); }
     });
@@ -384,7 +393,7 @@ function openDrawer(customer){
         alert('日時を変更しました');
         const keepKey = state.selectedCustomerKey;
         await loadData();
-        const again = state.customers.find(c => keyOf(c) === keepKey);
+        const again = state.customers.find(c => getKey(c) === keepKey);
         if (again) openDrawer(again);
       }catch(err){
         console.error(err);
@@ -436,14 +445,19 @@ function openDrawer(customer){
     indic.textContent = '来店履歴がありません。';
   }
 
-  const drawer=qs('#drawer'); drawer.setAttribute('aria-hidden','false');
+  const drawer=qs('#drawer');
+  drawer.setAttribute('aria-hidden','false');
+  document.body.classList.add('drawer-open'); // 互換スクロールロック
   drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
   qs('#drawer .close').onclick = closeDrawer;
 }
 function setVal(sel, v){ const el=qs(sel); if(el) el.value = v ?? ''; }
 function setChecked(sel, v){ const el=qs(sel); if(el) el.checked = !!v; }
 function toBool(v){ return String(v).toLowerCase()==='true' || v===true || v==='1' || v===1; }
-function closeDrawer(){ qs('#drawer').setAttribute('aria-hidden','true'); }
+function closeDrawer(){
+  qs('#drawer').setAttribute('aria-hidden','true');
+  document.body.classList.remove('drawer-open'); // 解除
+}
 
 function renderSourceStats(counts){
   const wrap = qs('#sourceStats');
@@ -502,7 +516,7 @@ async function saveNote(){
     qs('#saveStatus').textContent = '保存しました。';
     const keepKey = state.selectedCustomerKey;
     await loadData();
-    const again = state.customers.find(c => keyOf(c) === keepKey);
+    const again = state.customers.find(c => getKey(c) === keepKey);
     if (again) openDrawer(again);
   }catch(e){
     console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。';
@@ -524,8 +538,8 @@ function findDuplicates(customers){
     if (p) { if (!byPhone.has(p)) byPhone.set(p, []); byPhone.get(p).push(c); }
   });
 
-  for(const [k,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
-  for(const [k,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
+  for(const [,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
+  for(const [,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
 
   const last4 = s => (s||'').replace(/\D/g,'').slice(-4);
   for(let i=0;i<customers.length;i++){
@@ -557,7 +571,7 @@ function nameSimilarity(a,b){
 }
 function levenshtein(a,b){
   const m = a.length, n = b.length;
-  const dp = Array.from({length:m+1}, (_,i)=>Array(n+1).fill(0));
+  const dp = Array.from({length:m+1}, ()=>Array(n+1).fill(0));
   for(let i=0;i<=m;i++) dp[i][0]=i;
   for(let j=0;j<=n;j++) dp[0][j]=j;
   for(let i=1;i<=m;i++){
@@ -723,16 +737,3 @@ function attach(){
     showLoadError('読み込みに失敗しました。［再読み込み］を押してください。');
   }
 })();
-
-function openDrawer(customer){
-  // ...（既存ロジックそのまま）
-  const drawer=qs('#drawer'); drawer.setAttribute('aria-hidden','false');
-  document.body.classList.add('drawer-open');          // ← 追加：後方互換のスクロールロック
-  drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
-  qs('#drawer .close').onclick = closeDrawer;
-}
-
-function closeDrawer(){
-  qs('#drawer').setAttribute('aria-hidden','true');
-  document.body.classList.remove('drawer-open');       // ← 追加：解除
-}
