@@ -1,104 +1,599 @@
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;color:#222;background:#fff}
-header{padding:12px 16px;border-bottom:1px solid #eee;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
-h1{font-size:18px;margin:0}
-.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.tools.row2{margin-top:6px}
-.tools input,.tools select{padding:8px 10px}
-.inline{display:inline-flex;gap:6px;align-items:center}
-.tilde{padding:0 2px;color:#888}
-button{padding:8px 12px;border:1px solid #ddd;background:#fafafa;border-radius:8px;cursor:pointer}
-button:hover{background:#f2f2f2}
-.view-toggle label{margin-left:6px}
-.segmented input{padding:8px 10px;min-width:220px}
-main{padding:16px}
+/* =========================================================
+   Premium CRM UI - manage.css
+   - 既存の HTML/JS セレクタは不変
+   - ダーク/ライト自動、カスタムテーマは :root 変数で
+   ========================================================= */
 
-/* テーブル（PC） */
-.table-wrap{display:block}
-table{width:100%;border-collapse:collapse}
-th,td{padding:10px 8px;border-bottom:1px solid #eee;text-align:left;vertical-align:top}
-th{position:sticky;top:0;background:#fff;z-index:1}
-#pager{display:flex;gap:6px;justify-content:flex-end;padding-top:12px}
-#pager button{padding:6px 10px}
-.cell-contacts{display:flex;flex-direction:column;gap:4px;font-size:12px}
-.cell-actions a{margin-right:8px;text-decoration:none}
-.cell-actions a:hover{opacity:.8}
+/* ---------- Reset / Base ---------- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
 
-/* バッジ＆タグ */
-.tags{display:flex;flex-wrap:wrap;gap:6px}
-.tag{font-size:12px;border:1px solid #ddd;border-radius:999px;padding:2px 8px;background:#fafafa}
-.badge{font-size:12px;border-radius:999px;padding:2px 8px;background:#eef;border:1px solid #ccd}
-.badge.idle{background:#fee;border-color:#fcc}
-.badge.loyal{background:#efe;border-color:#cfc}
-.badge.new{background:#eef;border-color:#cce}
-.badge.past{background:#eee;border-color:#ddd}
-.badge.future{background:#e9f7ff;border-color:#bfe6ff}
-
-/* カード（モバイル） */
-.cards{display:none}
-.cards .card{border:1px solid #eee;border-radius:12px;padding:12px;margin:10px 0;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-.cards .name{font-weight:600;margin-bottom:6px}
-.cards .meta{font-size:12px;color:#666;margin-bottom:6px}
-.cards .tags{margin-top:6px}
-
-/* 右ドロワー（スクロール対応） */
-#drawer{
-  position: fixed; inset: 0; background: rgba(0,0,0,.3);
-  display: none; overflow: hidden;
+html, body {
+  height: 100%;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
-#drawer[aria-hidden="false"]{ display:block; }
-.drawer-inner{
-  position: absolute; right: 0; top: 0; bottom: 0;
-  width: 560px; max-width: 100%;
-  background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.15);
-  padding: 16px 12px 24px; display: flex; flex-direction: column; gap: 12px;
-  overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; max-height: 100dvh;
+
+:root {
+  /* Brand & semantic */
+  --brand:      #5865f2;   /* ← ブランディングカラーはここを変えるだけ */
+  --brand-600:  #4652d6;
+  --accent:     #14b8a6;
+  --ok:         #10b981;
+  --warn:       #f59e0b;
+  --danger:     #ef4444;
+  --ring:       color-mix(in hsl, var(--brand) 50%, white);
+
+  /* Surfaces / text (light) */
+  --bg:         #0b0d12;
+  --surface:    #11141a;
+  --surface-2:  #171b23;
+  --border:     #232838;
+  --muted:      #8a93a6;
+  --text:       #e6e9f2;
+  --text-weak:  #b8bfd2;
+
+  /* Shadows / radii / spacing */
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --shadow-1: 0 10px 30px rgba(0,0,0,0.25), 0 2px 10px rgba(0,0,0,0.25);
+  --shadow-2: 0 12px 40px rgba(0,0,0,0.35), 0 4px 16px rgba(0,0,0,0.35);
+
+  color-scheme: dark;
 }
-.drawer-inner h2{margin:0 28px 0 8px;font-size:16px}
-.drawer-inner .close{position:absolute;right:8px;top:8px}
 
-/* クイックアクション */
-.quick-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 8px}
-.quick-actions a{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #ddd;border-radius:999px;text-decoration:none;background:#fafafa;font-size:14px}
-.quick-actions a:hover{background:#f5f5f5}
-
-/* 予約流入元カウント（チップ） */
-.srcstats{display:flex;flex-wrap:wrap;gap:8px;margin:0 8px 8px}
-.srcchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #ddd;border-radius:999px;background:#f7f7f7;font-size:12px}
-.srcchip .count{font-weight:600}
-
-/* プロファイル編集フォーム */
-.note-editor{border:1px solid #eee;border-radius:12px;padding:12px}
-.note-editor .grid{display:grid;grid-template-columns:140px 1fr;gap:10px 12px;align-items:center}
-.note-editor input,.note-editor select,.note-editor textarea{padding:8px 10px;border:1px solid #ddd;border-radius:8px}
-.note-editor textarea{min-height:80px}
-.note-editor .checks{display:flex;gap:12px;align-items:center}
-.row.actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:8px}
-.save-status{min-height:1.2em;font-size:12px;color:#666}
-.last-indicator{font-size:12px;color:#555;margin-top:6px}
-
-/* 履歴テーブル操作 */
-#history .memo-text{white-space:pre-wrap}
-.resched-editor{display:inline-flex;gap:6px;align-items:center}
-.resched-editor[hidden]{display:none}
-
-/* 重複候補パネル */
-.dupes{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none}
-.dupes[aria-hidden="false"]{display:block}
-.dupes-inner{position:absolute;left:50%;top:8%;transform:translateX(-50%);width:960px;max-width:calc(100% - 24px);background:#fff;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.2);overflow:hidden}
-.dupes .head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #eee}
-.dupes .body{padding:12px 16px;max-height:70vh;overflow:auto}
-.dupes .close{padding:6px 10px}
-
-/* 表示切替（自動/モバイル/PC） */
-@media (max-width: 900px){
-  .note-editor .grid{grid-template-columns:1fr}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:        #f6f7fb;
+    --surface:   #ffffff;
+    --surface-2: #f4f6fb;
+    --border:    #e6e8f0;
+    --muted:     #6a7280;
+    --text:      #111827;
+    --text-weak: #4b5563;
+    color-scheme: light;
+  }
 }
-@media (max-width: 768px){
-  body.view-auto .table-wrap{display:none}
-  body.view-auto .cards{display:block}
+
+/* 強制ダークモード（必要なら <body class="theme-dark">） */
+.theme-dark {
+  --bg:         #0b0d12;
+  --surface:    #11141a;
+  --surface-2:  #171b23;
+  --border:     #232838;
+  --muted:      #8a93a6;
+  --text:       #e6e9f2;
+  --text-weak:  #b8bfd2;
+  color-scheme: dark;
 }
-body.view-mobile .table-wrap{display:none}
-body.view-mobile .cards{display:block}
-body.view-desktop .table-wrap{display:block}
-body.view-desktop .cards{display:none}
+
+body {
+  margin: 0;
+  font-family: "Inter","Noto Sans JP", system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Yu Gothic", "Meiryo", sans-serif;
+  background: radial-gradient(1200px 600px at 80% -10%, rgba(88,101,242,0.15), transparent 60%),
+              radial-gradient(1000px 500px at -10% -20%, rgba(20,184,166,0.12), transparent 50%),
+              var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  accent-color: var(--brand);
+}
+
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ---------- Layout ---------- */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  backdrop-filter: saturate(120%) blur(14px);
+  background: color-mix(in hsl, var(--surface) 75%, transparent);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+}
+
+header > h1 {
+  margin: 0;
+  padding: 20px 24px 6px;
+  font-weight: 700;
+  font-size: clamp(18px, 2.1vw, 22px);
+  letter-spacing: .02em;
+}
+
+header .tools {
+  display: grid;
+  gap: 10px 12px;
+  padding: 12px 16px 16px;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: center;
+}
+
+header .tools.row2 {
+  padding-top: 0;
+  padding-bottom: 18px;
+}
+
+/* レスポンシブ分配（美しく折り返す） */
+#q { grid-column: span 4; }
+#from, .tilde, #to { grid-column: span 1; }
+#menuFilter { grid-column: span 2; }
+#tagFilter { grid-column: span 2; }
+#quickSeg { grid-column: span 2; }
+.inline { grid-column: span 2; }
+#sort { grid-column: span 2; }
+#reload, #exportCsv { grid-column: span 1; min-width: 100px; }
+
+@media (max-width: 1100px) {
+  header .tools { grid-template-columns: repeat(6, 1fr); }
+  #q { grid-column: span 6; }
+  #from, .tilde, #to { grid-column: span 2; }
+  #menuFilter, #tagFilter, #quickSeg, .inline, #sort { grid-column: span 3; }
+  #reload, #exportCsv { grid-column: span 3; }
+}
+@media (max-width: 680px) {
+  header .tools { grid-template-columns: repeat(2, 1fr); }
+  #q, #menuFilter, #tagFilter, #quickSeg, .inline, #sort, #reload, #exportCsv { grid-column: 1 / -1; }
+  #from, .tilde, #to { grid-column: span 1; }
+  .tilde { text-align: center; }
+}
+
+/* ---------- Controls ---------- */
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="tel"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+
+input::placeholder, textarea::placeholder { color: var(--muted); }
+
+input:hover, select:hover, textarea:hover {
+  border-color: color-mix(in hsl, var(--brand) 24%, var(--border));
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in hsl, var(--brand) 22%, transparent);
+}
+
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) calc(1em + 3px),
+    calc(100% - 13px) calc(1em + 3px),
+    calc(100% - 2.5em) 0.5em;
+  background-size: 6px 6px, 6px 6px, 1px 2.5em;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+/* Segmented / Toggles */
+.view-toggle {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+  grid-column: span 4;
+}
+.view-toggle label {
+  position: relative;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-weak);
+  font-weight: 600;
+}
+.view-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.view-toggle input:checked + span,
+.view-toggle input:checked ~ * {
+  /* not used */
+}
+.view-toggle input:checked ~ ._ {
+  /* placeholder */
+}
+.view-toggle input:checked + label,
+.view-toggle label:has(input:checked) {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 10px 20px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.02);
+}
+
+/* “保存条件” パーツ */
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 8px;
+  align-items: center;
+  grid-column: span 6;
+}
+.segmented input { height: 40px; }
+
+/* Buttons */
+button {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: transform .05s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+}
+button:hover {
+  border-color: color-mix(in hsl, var(--brand) 24%, var(--border));
+  box-shadow: 0 8px 18px rgba(0,0,0,.16);
+}
+button:active { transform: translateY(1px); }
+
+#reload {
+  background: var(--surface-2);
+}
+#exportCsv {
+  background: var(--brand);
+  border-color: var(--brand-600);
+  color: #fff;
+}
+#exportCsv:hover {
+  background: var(--brand-600);
+}
+
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-weak);
+}
+
+/* ---------- Main ---------- */
+main {
+  max-width: 1400px;
+  margin: 24px auto 80px;
+  padding: 0 16px;
+}
+
+/* Table (Desktop) */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in hsl, var(--surface) 70%, transparent) 100%);
+  box-shadow: var(--shadow-1);
+  overflow: clip;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  color: var(--text-weak);
+  text-align: left;
+  padding: 12px 14px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border);
+}
+tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+tbody tr {
+  transition: background .15s ease;
+}
+tbody tr:hover {
+  background: color-mix(in hsl, var(--brand) 8%, transparent);
+  cursor: pointer;
+}
+.cell-contacts a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface-2);
+  margin-right: 6px;
+  font-size: 12.5px;
+}
+.cell-contacts a:hover {
+  border-color: color-mix(in hsl, var(--brand) 30%, var(--border));
+  background: color-mix(in hsl, var(--surface-2) 80%, var(--brand) 20%);
+}
+
+/* Tags / Badges */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  display: inline-flex; align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
+  color: var(--text-weak);
+  font-size: 12px;
+}
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  border: 1px solid transparent;
+}
+.badge.new    { background: color-mix(in hsl, var(--brand) 14%, transparent); color: var(--text); border-color: color-mix(in hsl, var(--brand) 30%, transparent); }
+.badge.loyal  { background: color-mix(in hsl, var(--ok) 18%, transparent);    color: var(--text); border-color: color-mix(in hsl, var(--ok) 35%, transparent); }
+.badge.idle   { background: color-mix(in hsl, var(--warn) 18%, transparent);  color: var(--text); border-color: color-mix(in hsl, var(--warn) 35%, transparent); }
+.badge.past   { background: color-mix(in hsl, var(--muted) 24%, transparent); color: var(--text); }
+.badge.future { background: color-mix(in hsl, var(--accent) 18%, transparent);color: var(--text); }
+
+/* Right drawer */
+#drawer[aria-hidden="true"] {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+#drawer[aria-hidden="false"] {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-columns: 1fr min(520px, 94vw);
+  background: color-mix(in hsl, #000 45%, transparent);
+  backdrop-filter: blur(6px);
+  transition: opacity .2s ease-in-out;
+  opacity: 1;
+  z-index: 60;
+}
+#drawer .drawer-inner {
+  height: 100dvh;
+  overflow: auto;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-2);
+  padding: 20px 18px 40px;
+  animation: slideIn .18s ease-out;
+}
+@keyframes slideIn {
+  from { transform: translateX(20px); opacity: .6; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+#drawer .close {
+  position: sticky; top: -6px; margin-left: auto; z-index: 2;
+  width: 38px; height: 38px; border-radius: 999px;
+  display: inline-grid; place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+#drawer h2 {
+  margin: 8px 0 16px;
+  font-size: 18px; font-weight: 700; letter-spacing: .02em;
+}
+#drawer h3 {
+  margin: 18px 0 10px;
+  font-size: 14px; color: var(--text-weak); font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* Quick actions */
+#quickActions a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-right: 6px;
+  border-radius: 10px; text-decoration: none;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+/* Source stats (chips) */
+.srcstats { display: flex; flex-wrap: wrap; gap: 8px; }
+.srcchip {
+  display: inline-flex; gap: 6px; align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 999px;
+  color: var(--text-weak);
+  font-weight: 600; font-size: 12px;
+}
+.srcchip .count {
+  min-width: 18px; text-align: center;
+  padding: 2px 6px; border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* Note editor form grid */
+.note-editor .grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.note-editor label { color: var(--muted); font-weight: 600; }
+.note-editor .checks {
+  display: inline-flex; gap: 14px; align-items: center;
+}
+.note-editor .actions {
+  display: flex; align-items: center; gap: 12px; margin-top: 10px;
+}
+.save-status { color: var(--muted); font-weight: 600; }
+
+/* Drawer history table */
+#history thead th { top: 0; }
+#history tbody tr:hover { background: color-mix(in hsl, var(--brand) 6%, transparent); }
+#history .memo-text {
+  white-space: pre-wrap;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 36px;
+}
+#history .memo-edit, #history .resched-btn, .do-resched, .cancel-resched {
+  height: 32px; padding: 0 10px; border-radius: 8px; font-weight: 700;
+}
+#history .resched-editor {
+  display: inline-flex; gap: 6px; align-items: center; margin-left: 6px;
+}
+
+/* “要フォロー” インジケータ */
+.last-indicator {
+  margin: 12px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in hsl, var(--warn) 8%, var(--surface));
+  color: var(--text);
+}
+
+/* Pager */
+#pager {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; padding: 12px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+#pager button {
+  height: 36px; min-width: 38px;
+  border-radius: 10px;
+}
+
+/* Cards (Mobile) */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), color-mix(in hsl, var(--surface) 70%, transparent));
+  box-shadow: var(--shadow-1);
+  padding: 14px;
+  transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: color-mix(in hsl, var(--brand) 26%, var(--border)); }
+.card .name { font-size: 16px; font-weight: 700; }
+.card .meta { color: var(--text-weak); font-size: 12.5px; margin: 4px 0 8px; }
+
+/* Dupes panel (modal) */
+#dupesPanel[aria-hidden="true"] {
+  position: fixed; inset: 0; opacity: 0; pointer-events: none;
+}
+#dupesPanel[aria-hidden="false"] {
+  position: fixed; inset: 0; z-index: 70;
+  display: grid; place-items: center;
+  background: color-mix(in hsl, #000 52%, transparent);
+  backdrop-filter: blur(4px);
+  opacity: 1;
+}
+.dupes-inner {
+  width: min(920px, 94vw);
+  max-height: 86dvh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+}
+.dupes .head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.dupes .head h2 { margin: 0; font-size: 16px; }
+.dupes .close {
+  width: 36px; height: 36px; border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.dupes .body { padding: 12px 14px 18px; }
+.dupes table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.dupes thead th, .dupes tbody td {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.dupes .help { color: var(--muted); }
+
+/* View switching
+   - .view-auto: 幅で自動
+   - .view-mobile / .view-desktop: 強制切替（既存ラジオ連動）
+*/
+.view-auto #cardsSection { display: none; }
+.view-auto #customersSection { display: block; }
+@media (max-width: 900px) {
+  .view-auto #cardsSection { display: grid; }
+  .view-auto #customersSection { display: none; }
+}
+.view-mobile #cardsSection { display: grid; }
+.view-mobile #customersSection { display: none; }
+.view-desktop #cardsSection { display: none; }
+.view-desktop #customersSection { display: block; }
+
+/* Links (table action icons use emojiだが質感を上げる) */
+.cell-actions a {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; margin-right: 4px;
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  transition: background .2s ease, border-color .2s ease, transform .06s ease;
+}
+.cell-actions a:hover {
+  border-color: color-mix(in hsl, var(--brand) 30%, var(--border));
+  background: color-mix(in hsl, var(--surface-2) 75%, var(--brand) 25%);
+  transform: translateY(-1px);
+}
+
+/* Tiny helpers */
+.tilde { color: var(--muted); }
+[aria-live="polite"] { min-height: 1.2em; }
+
+/* Body scroll lock when drawer open (Safari/Chrome OK) */
+body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
+
+/* Print */
+@media print {
+  header, #pager, #cardsSection, #drawer, #dupesPanel { display: none !important; }
+  body { background: #fff; color: #000; }
+  .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
+}
