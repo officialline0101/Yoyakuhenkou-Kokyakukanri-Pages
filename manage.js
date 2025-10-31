@@ -40,7 +40,7 @@ const state = {
   editMode: false,
   editSnapshot: null,
   focusIndex: -1,
-  currentHist: [], // 現在描画中の履歴（リサイズ再描画用）
+  currentHist: [],
 };
 
 // ===== Util =====
@@ -91,7 +91,7 @@ function showToast(msg, type=''){
 
 // ===== Theme =====
 function applyTheme(){
-  const v = settings.theme; // 'system'|'light'|'dark'
+  const v = settings.theme;
   const root = document.documentElement;
   if (v === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', v);
@@ -126,6 +126,32 @@ function wireLoadingRetry(){
   });
 }
 
+/* ===== Global Saving Overlay ===== */
+function setGlobalSaving(on, text){
+  const el = document.getElementById('saving');
+  if (!el) return;
+  if (text) el.querySelector('.saving-text').textContent = text;
+  el.setAttribute('aria-hidden', on ? 'false' : 'true');
+  el.setAttribute('aria-busy', on ? 'true' : 'false');
+  document.body.classList.toggle('is-saving', !!on);
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+/** 保存系で使う共通ラッパー（保存中ロック→保存しました→自動クローズ） */
+async function withSaving(task, opts={}){
+  const { start='保存中です…', done='保存しました', hold=900 } = opts;
+  setGlobalSaving(true, start);
+  try{
+    const result = typeof task === 'function' ? await task() : await task;
+    setGlobalSaving(true, done);
+    await sleep(hold);
+    setGlobalSaving(false);
+    return result;
+  }catch(e){
+    setGlobalSaving(false);
+    throw e;
+  }
+}
+
 // ====== Data Load & Enhance ======
 async function loadData(){
   const base = GAS_WEBAPP_URL;
@@ -134,7 +160,6 @@ async function loadData(){
     fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
   ]);
 
-  // 正規化
   state.reservations = (reservationsRaw || []).map(r=>{
     const startD = parseAnyDate(r.startIso || r.start);
     const endD   = parseAnyDate(r.endIso   || r.end);
@@ -380,7 +405,7 @@ function openDrawer(customer){
     .filter(r => getKey(r) === k)
     .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
 
-  state.currentHist = hist.slice(); // リサイズ再描画用
+  state.currentHist = hist.slice();
 
   // 流入元カウント
   const srcCounts = {};
@@ -390,10 +415,9 @@ function openDrawer(customer){
   }
   renderSourceStats(srcCounts);
 
-  // 履歴描画（PC=表 / SP=カード）
+  // 履歴描画
   renderHistory(hist);
 
-  // タイトル & クイックアクション
   const titleName = customer.name || customer.email || customer.phone || '';
   qs('#drawerTitle').textContent = `顧客プロファイル：${titleName}`;
   qs('#quickActions').innerHTML = [
@@ -414,7 +438,6 @@ function openDrawer(customer){
   drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
   qs('#drawer .close').onclick = closeDrawer;
 
-  // 画面幅の変化で履歴レイアウトを切替
   if (!openDrawer._resizeBound) {
     openDrawer._resizeBound = true;
     window.addEventListener('resize', debounce(()=> {
@@ -581,7 +604,7 @@ function renderHistoryCards(hist, mount){
 }
 
 function wireHistoryEvents(container){
-  // メモ編集
+  // メモ編集（※保存ボタンはないのでトーストのみ。要件対象外）
   container.querySelectorAll('.memo-edit').forEach(btn=>{
     btn.addEventListener('click', async (e)=>{
       const holder = e.target.closest('[data-resv-id]');
@@ -590,7 +613,9 @@ function wireHistoryEvents(container){
       const memo = prompt('この予約のメモ', cur);
       if (memo == null) return;
       try{
-        await postJSON({ action:'upsertResvMemo', resvId, memo });
+        await withSaving(async ()=>{ // オーバーレイを使いたくない場合は withSaving を外してOK
+          await postJSON({ action:'upsertResvMemo', resvId, memo });
+        }, {start:'保存中です…', done:'保存しました', hold:700});
         holder.querySelector('.memo-text').textContent = memo;
         const keepKey = state.selectedCustomerKey;
         await loadData();
@@ -622,7 +647,7 @@ function wireHistoryEvents(container){
     });
   });
 
-  // 日時変更：保存
+  // 日時変更：保存（←要件対象。保存中は他操作不可）
   container.querySelectorAll('.do-resched').forEach(btn=>{
     btn.addEventListener('click', async e=>{
       const holder = e.target.closest('[data-resv-id]');
@@ -630,12 +655,14 @@ function wireHistoryEvents(container){
       const dt = holder.querySelector('.resched-dt')?.value;
       if (!dt) return showToast('日時を選択してください', 'warn');
       try{
-        await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
+        await withSaving(async ()=>{
+          await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
+          const keepKey = state.selectedCustomerKey;
+          await loadData();
+          const again = state.customers.find(c => getKey(c) === keepKey);
+          if (again) openDrawer(again);
+        }, { start:'保存中です…', done:'保存しました', hold:900 });
         showToast('日時を変更しました', 'success');
-        const keepKey = state.selectedCustomerKey;
-        await loadData();
-        const again = state.customers.find(c => getKey(c) === keepKey);
-        if (again) openDrawer(again);
       }catch(err){
         console.error(err);
         showToast('変更に失敗しました（営業時間外・重複・過去予約等の可能性）','error');
@@ -683,18 +710,21 @@ async function saveNote(){
     ticketExpiry: qs('#editTicketExpiry').value
   };
 
-  qs('#saveNote').disabled = true; qs('#saveStatus').textContent = '保存中…';
+  qs('#saveNote').disabled = true; qs('#saveStatus').textContent = '';
   try{
-    await postJSON(body);
-    qs('#saveStatus').textContent = '保存しました。';
+    await withSaving(async ()=>{
+      await postJSON(body);
+      const keepKey = state.selectedCustomerKey;
+      await loadData();
+      const again = state.customers.find(c => getKey(c) === keepKey);
+      if (again) openDrawer(again);
+      setEditMode(false);
+    }, { start:'保存中です…', done:'保存しました', hold:900 });
     showToast('顧客情報を保存しました', 'success');
-    const keepKey = state.selectedCustomerKey;
-    await loadData();
-    const again = state.customers.find(c => getKey(c) === keepKey);
-    if (again) openDrawer(again);
-    setEditMode(false);
   }catch(e){
-    console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。'; showToast('保存に失敗しました', 'error');
+    console.error(e);
+    qs('#saveStatus').textContent = '保存に失敗しました。';
+    showToast('保存に失敗しました', 'error');
   }finally{
     qs('#saveNote').disabled = false;
   }
@@ -789,6 +819,10 @@ function attach(){
 
   // キーボードショートカット
   document.addEventListener('keydown', (e)=>{
+    // 保存中はキーボード操作も抑止
+    if (document.body.classList.contains('is-saving')) {
+      e.preventDefault(); e.stopPropagation(); return;
+    }
     const tag = (e.target.tagName || '').toLowerCase();
     const typing = tag==='input' || tag==='textarea' || e.target.isContentEditable;
 
