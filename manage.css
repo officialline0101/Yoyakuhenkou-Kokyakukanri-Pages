@@ -1,7 +1,6 @@
 /* =========================================================
-   Premium CRM UI - manage.css (Mobile-polished)
-   - 既存の HTML/JS セレクタは不変
-   - ローディング/ダークモード/高品位UI + スマホ最適化
+   Premium CRM UI - manage.css (Mobile-polished + fixes)
+   - 既存セレクタは不変 / 機能変更なし
    ========================================================= */
 
 /* ---------- Reset / Base ---------- */
@@ -17,8 +16,7 @@ html, body {
 }
 
 :root {
-  /* Brand & semantic */
-  --brand:      #5865f2;   /* ← ブランディングカラーはここを変えるだけ */
+  --brand:      #5865f2;
   --brand-600:  #4652d6;
   --accent:     #14b8a6;
   --ok:         #10b981;
@@ -26,7 +24,6 @@ html, body {
   --danger:     #ef4444;
   --ring:       color-mix(in hsl, var(--brand) 50%, white);
 
-  /* Surfaces / text (dark default for backdrop mixes) */
   --bg:         #0b0d12;
   --surface:    #11141a;
   --surface-2:  #171b23;
@@ -35,7 +32,6 @@ html, body {
   --text:       #e6e9f2;
   --text-weak:  #b8bfd2;
 
-  /* Shadows / radii / spacing */
   --radius: 14px;
   --radius-sm: 10px;
   --radius-xs: 8px;
@@ -145,7 +141,6 @@ header .tools.row2 {
   #q, #menuFilter, #tagFilter, #quickSeg, .inline, #sort, #reload, #exportCsv { grid-column: 1 / -1; }
   #from, #to { grid-column: span 1; }
   .tilde { grid-column: span 1; text-align: center; color: var(--muted); }
-  /* ボタンは押しやすく */
   button { height: 44px; }
 }
 
@@ -153,15 +148,10 @@ header .tools.row2 {
 @media (max-width: 480px) {
   header > h1 { padding: 14px 12px 4px; font-size: 18px; }
   header .tools { grid-template-columns: 1fr; }
-  /* 日付レンジは縦積み（記号は省略） */
   .tilde { display: none; }
   #from, #to { grid-column: 1 / -1; }
-
-  /* トグルは1行フル幅 */
   .view-toggle { grid-column: 1 / -1; width: 100%; justify-content: space-between; }
   .view-toggle label { flex: 1 1 33%; text-align: center; }
-
-  /* セグメント保存UIは折り返し */
   .segmented { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
   .segmented input { flex: 1 1 100%; }
   .segmented button, .segmented select { flex: 1 1 calc(50% - 8px); min-width: 120px; }
@@ -184,7 +174,7 @@ textarea {
   background: var(--surface);
   color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
-  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+  transition: border-color .2s, background .2s, box-shadow .2s;
 }
 
 input::placeholder, textarea::placeholder { color: var(--muted); }
@@ -263,7 +253,7 @@ button {
   font-weight: 600;
   letter-spacing: .02em;
   cursor: pointer;
-  transition: transform .05s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+  transition: transform .05s, box-shadow .2s, background .2s, border-color .2s;
 }
 button:hover {
   border-color: color-mix(in hsl, var(--brand) 24%, var(--border));
@@ -271,14 +261,8 @@ button:hover {
 }
 button:active { transform: translateY(1px); }
 
-#reload {
-  background: var(--surface-2);
-}
-#exportCsv {
-  background: var(--brand);
-  border-color: var(--brand-600);
-  color: #fff;
-}
+#reload { background: var(--surface-2); }
+#exportCsv { background: var(--brand); border-color: var(--brand-600); color: #fff; }
 #exportCsv:hover { background: var(--brand-600); }
 
 .inline {
@@ -307,15 +291,9 @@ main {
   overflow: clip;
 }
 
-table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-}
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
 thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  position: sticky; top: 0; z-index: 1;
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
   color: var(--text-weak);
   text-align: left;
@@ -331,11 +309,8 @@ tbody td {
 tbody tr { transition: background .15s ease; }
 tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cursor: pointer; }
 
-/* スマホでは表はカード表示に切替（下の View switching で制御） */
 .cell-contacts a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 10px;
@@ -353,8 +328,7 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 /* Tags / Badges */
 .tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .tag {
-  display: inline-flex; align-items: center;
-  gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 8px;
   border-radius: 999px;
   border: 1px dashed var(--border);
@@ -375,41 +349,52 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 .badge.loyal  { background: color-mix(in hsl, var(--ok) 18%, transparent);    color: var(--text); border-color: color-mix(in hsl, var(--ok) 35%, transparent); }
 .badge.idle   { background: color-mix(in hsl, var(--warn) 18%, transparent);  color: var(--text); border-color: color-mix(in hsl, var(--warn) 35%, transparent); }
 .badge.past   { background: color-mix(in hsl, var(--muted) 24%, transparent); color: var(--text); }
-.badge.future { background: color-mix(in hsl, var(--accent) 18%, transparent);color: var(--text); }
+.badge.future { background: color-mix(in hsl, var(--accent) 18%, transparent); color: var(--text); }
 
 /* Right drawer */
 #drawer[aria-hidden="true"] {
-  position: fixed; inset: 0;
-  pointer-events: none;
-  opacity: 0;
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
 }
 #drawer[aria-hidden="false"] {
   position: fixed; inset: 0;
   display: grid;
-  grid-template-columns: 1fr min(520px, 100vw);
+  grid-template-columns: 1fr min(520px, 100vw);  /* ← 左:オーバーレイ / 右:ドロワー */
+  place-items: stretch;
   background: color-mix(in hsl, #000 45%, transparent);
   backdrop-filter: blur(6px);
   transition: opacity .2s ease-in-out;
   opacity: 1;
   z-index: 60;
 }
+/* 左面をクリック用のオーバーレイに（イベントターゲットは #drawer で拾える） */
+#drawer[aria-hidden="false"]::before {
+  content: "";
+  grid-column: 1;
+}
+#drawer[aria-hidden="false"] .drawer-inner {
+  grid-column: 2;                 /* ← 必ず右カラムに配置 */
+  width: min(520px, 100vw);
+  margin-left: auto;
+}
+
 #drawer .drawer-inner {
-  height: 100dvh; /* モバイルでの表示領域 */
+  height: 100vh;
   overflow: auto;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-2);
   padding: 20px 18px 40px;
   animation: slideIn .18s ease-out;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px) + 16px);
 }
-/* iOS Safe Area 対応 */
-@supports (padding: max(0px)) {
-  #drawer .drawer-inner { padding-bottom: max(40px, env(safe-area-inset-bottom) + 16px); }
-}
-@keyframes slideIn {
-  from { transform: translateX(20px); opacity: .6; }
-  to   { transform: translateX(0);    opacity: 1; }
-}
+@supports (height: 100dvh) { #drawer .drawer-inner { height: 100dvh; } }
+@supports (height: 100svh) { #drawer .drawer-inner { height: 100svh; } }
+@supports (height: 100lvh) { #drawer .drawer-inner { height: 100lvh; } }
+
+@keyframes slideIn { from { transform: translateX(20px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
 #drawer .close {
   position: sticky; top: -6px; margin-left: auto; z-index: 2;
   width: 38px; height: 38px; border-radius: 999px;
@@ -417,10 +402,7 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
-#drawer h2 {
-  margin: 8px 0 16px;
-  font-size: 18px; font-weight: 700; letter-spacing: .02em;
-}
+#drawer h2 { margin: 8px 0 16px; font-size: 18px; font-weight: 700; letter-spacing: .02em; }
 #drawer h3 {
   margin: 18px 0 10px;
   font-size: 14px; color: var(--text-weak); font-weight: 700; letter-spacing: .06em;
@@ -439,7 +421,7 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 }
 
 /* Source stats (chips) */
-.srcstats { display: flex; flex-wrap: wrap; gap: 8px; }
+.srcstats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .srcchip {
   display: inline-flex; gap: 6px; align-items: center;
   padding: 6px 10px;
@@ -472,15 +454,11 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 .note-editor .actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .save-status { color: var(--muted); font-weight: 600; }
 
-/* タブレットで少し詰める */
-@media (max-width: 900px) {
-  .note-editor .grid { grid-template-columns: 120px 1fr; }
-}
-
-/* スマホでは1カラム化（ラベル→入力の縦並び） */
+@media (max-width: 900px) { .note-editor .grid { grid-template-columns: 120px 1fr; } }
 @media (max-width: 680px) {
   .note-editor .grid { grid-template-columns: 1fr; }
   .note-editor label { margin-top: 4px; }
+  input, select, textarea { font-size: 16px; } /* iOSズーム抑止 */
 }
 
 /* Drawer history table */
@@ -499,7 +477,6 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 }
 #history .resched-editor { display: inline-flex; gap: 6px; align-items: center; margin-left: 6px; }
 
-/* スマホで履歴テーブルを横スクロール可能に */
 @media (max-width: 680px) {
   #history { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   #history thead, #history tbody, #history tr, #history th, #history td { white-space: nowrap; }
@@ -522,10 +499,7 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
   background: var(--surface-2);
   border-top: 1px solid var(--border);
 }
-#pager button {
-  height: 36px; min-width: 38px;
-  border-radius: 10px;
-}
+#pager button { height: 36px; min-width: 38px; border-radius: 10px; }
 
 /* Cards (Mobile) */
 .cards {
@@ -540,19 +514,15 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
   background: linear-gradient(180deg, var(--surface), color-mix(in hsl, var(--surface) 70%, transparent));
   box-shadow: var(--shadow-1);
   padding: 14px;
-  transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease, background .2s ease;
+  transition: transform .08s, box-shadow .2s, border-color .2s, background .2s;
 }
 .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: color-mix(in hsl, var(--brand) 26%, var(--border)); }
 .card .name { font-size: 16px; font-weight: 700; }
 .card .meta { color: var(--text-weak); font-size: 12.5px; margin: 4px 0 8px; }
-@media (max-width: 560px) {
-  .cards { grid-template-columns: 1fr; } /* 極小端末は1列 */
-}
+@media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
 
 /* Dupes panel (modal) */
-#dupesPanel[aria-hidden="true"] {
-  position: fixed; inset: 0; opacity: 0; pointer-events: none;
-}
+#dupesPanel[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
 #dupesPanel[aria-hidden="false"] {
   position: fixed; inset: 0; z-index: 70;
   display: grid; place-items: center;
@@ -581,9 +551,7 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
 }
 .dupes .body { padding: 12px 14px 18px; }
 .dupes table { width: 100%; border-collapse: separate; border-spacing: 0; }
-.dupes thead th, .dupes tbody td {
-  padding: 10px 12px; border-bottom: 1px solid var(--border);
-}
+.dupes thead th, .dupes tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .dupes .help { color: var(--muted); }
 
 /* View switching */
@@ -606,41 +574,32 @@ tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cu
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface-2);
-  transition: background .2s ease, border-color .2s ease, transform .06s ease;
+  transition: background .2s, border-color .2s, transform .06s;
 }
 .cell-actions a:hover {
   border-color: color-mix(in hsl, var(--brand) 30%, var(--border));
   background: color-mix(in hsl, var(--surface-2) 75%, var(--brand) 25%);
   transform: translateY(-1px);
 }
-@media (max-width: 680px) {
-  .cell-actions a { width: 40px; height: 40px; } /* タップしやすく */
-}
+@media (max-width: 680px) { .cell-actions a { width: 40px; height: 40px; } }
 
-/* Tiny helpers */
+/* Helpers */
 .tilde { color: var(--muted); }
 [aria-live="polite"] { min-height: 1.2em; }
 
-/* Body scroll lock when drawer open */
+/* Drawer open時のスクロールロック（:has 非対応ブラウザ向け） */
+body.drawer-open { overflow: hidden; }
+/* :has に対応している環境でもロック */
 body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 
 /* ===== Loading Overlay ===== */
 #loading[aria-hidden="false"] {
-  position: fixed;
-  inset: 0;
-  z-index: 100; /* drawer より上 */
-  display: grid;
-  place-items: center;
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center;
   background: color-mix(in hsl, #000 55%, transparent);
   backdrop-filter: blur(6px) saturate(120%);
 }
-
-#loading[aria-hidden="true"] {
-  position: fixed;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-}
+#loading[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
 
 .loading-card {
   width: min(420px, 92vw);
@@ -651,41 +610,21 @@ body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
   padding: 24px 22px;
   text-align: center;
 }
-
 .spinner {
-  width: 48px; height: 48px;
-  margin: 4px auto 10px;
+  width: 48px; height: 48px; margin: 4px auto 10px;
   border-radius: 50%;
   border: 3px solid var(--border);
   border-top-color: var(--brand);
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-.loading-text {
-  margin: 6px 0 10px;
-  font-weight: 700;
-  letter-spacing: .02em;
-}
-
+.loading-text { margin: 6px 0 10px; font-weight: 700; letter-spacing: .02em; }
 #loading .retry {
-  height: 44px;
-  padding: 0 14px;
-  border-radius: 12px;
-  border: 1px solid var(--brand);
-  background: var(--brand);
-  color: #fff;
-  font-weight: 700;
+  height: 44px; padding: 0 14px; border-radius: 12px;
+  border: 1px solid var(--brand); background: var(--brand); color: #fff; font-weight: 700;
 }
 #loading .retry:hover { background: var(--brand-600); }
-
-/* ロード中はスクロールを固定 */
 body.is-loading { overflow: hidden; }
-
-/* 新しいビューポート単位対応（Android Chrome/iOS Safari） */
-@supports (height: 100lvh) {
-  #drawer .drawer-inner { height: 100lvh; }
-}
 
 /* Print */
 @media print {
@@ -693,52 +632,3 @@ body.is-loading { overflow: hidden; }
   body { background: #fff; color: #000; }
   .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
 }
-
-
-/* ==== Drawer mobile fixes & hardening ==== */
-
-/* 右側カラムにドロワーを“必ず”配置（左に詰まる問題の根本） */
-#drawer[aria-hidden="false"] {
-  display: grid;
-  grid-template-columns: 1fr min(520px, 100vw);
-  place-items: stretch;
-}
-#drawer[aria-hidden="false"] .drawer-inner {
-  grid-column: 2;              /* ← 右カラムへ固定 */
-  width: min(520px, 100vw);
-  margin-left: auto;           /* 右寄せの保険 */
-}
-
-/* モバイルでの高さ/セーフエリア/スクロール最適化 */
-#drawer .drawer-inner {
-  height: 100vh;
-  overscroll-behavior: contain;           /* 背景の巻き込みスクロール防止 */
-  -webkit-overflow-scrolling: touch;      /* iOS スクロール慣性 */
-  padding-top: max(16px, env(safe-area-inset-top, 0px));
-  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px) + 16px);
-}
-
-/* 新しいビューポート単位が使える端末ではより正確に */
-@supports (height: 100dvh) {
-  #drawer .drawer-inner { height: 100dvh; }
-}
-@supports (height: 100svh) {
-  #drawer .drawer-inner { height: 100svh; }
-}
-@supports (height: 100lvh) {
-  #drawer .drawer-inner { height: 100lvh; }
-}
-
-/* 背景側のクリック面を確保（右固定で左がオーバーレイになる想定） */
-#drawer[aria-hidden="false"]::before {
-  content: "";
-  grid-column: 1;              /* 左カラム全面をクリック遮蔽に */
-}
-
-/* 入力時にiOSが勝手にズームするのを防止（<16px対象） */
-@media (max-width: 680px) {
-  input, select, textarea { font-size: 16px; }
-}
-
-/* 古いブラウザ向け：:has() 非対応でもスクロールロックを効かせる */
-body.drawer-open { overflow: hidden; }
