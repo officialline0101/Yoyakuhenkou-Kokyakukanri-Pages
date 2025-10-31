@@ -37,7 +37,6 @@ const state = {
   sortKey: 'lastReservation', sortDir: 'desc',
   selectedCustomerKey: null,
   distinctMenus: [],
-  dupes: [],
   editMode: false,
   editSnapshot: null,
   focusIndex: -1 // 現ページ内のフォーカス行
@@ -98,7 +97,7 @@ function ensureToastHost(){
   if (!document.getElementById('toastwrap')) {
     const w = document.createElement('div');
     w.id = 'toastwrap';
-    w.setAttribute('aria-live','polite'); // SRに伝える
+    w.setAttribute('aria-live','polite');
     document.body.appendChild(w);
   }
 }
@@ -127,7 +126,6 @@ function applyTheme(){
 }
 function toggleThemeQuick(){
   const v = settings.theme;
-  // system→dark→light→dark...ではなく、実用上は dark/light のトグルを好む
   const next = (v === 'dark') ? 'light' : 'dark';
   settings.theme = next;
 }
@@ -191,12 +189,8 @@ async function loadData(){
   qs('#menuFilter').innerHTML =
     `<option value="">メニュー：すべて</option>` + state.distinctMenus.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
 
-  state.dupes = findDuplicates(state.customers);
-  renderDupes();
-
-  // 設定復元
+  // 列表示の復元 & ページサイズ復元
   applyColumnVisibility();
-  // ページサイズ復元
   state.perPage = settings.per;
 
   applyFilter();
@@ -342,7 +336,7 @@ function renderTable(){
     frag.appendChild(tr);
   }
   tb.appendChild(frag);
-  updateRowFocus(); // 再描画時にフォーカス行の見た目を再適用
+  updateRowFocus();
 }
 
 function renderCards(){
@@ -633,169 +627,8 @@ async function saveNote(){
   }
 }
 
-// ===== 重複候補（簡易） =====
-function findDuplicates(customers){
-  const out = [];
-  const byEmail = new Map();
-  const byPhone = new Map();
-
-  customers.forEach(c=>{
-    const e = (c.email||'').toLowerCase().trim();
-    const p = (c.phone||'').replace(/\D/g,'');
-    if (e) { if (!byEmail.has(e)) byEmail.set(e, []); byEmail.get(e).push(c); }
-    if (p) { if (!byPhone.has(p)) byPhone.set(p, []); byPhone.get(p).push(c); }
-  });
-
-  for(const [,arr] of byEmail) if (arr.length>1) pushPairs(arr, '同一メール');
-  for(const [,arr] of byPhone) if (arr.length>1) pushPairs(arr, '同一電話');
-
-  const last4 = s => (s||'').replace(/\D/g,'').slice(-4);
-  for(let i=0;i<customers.length;i++){
-    for(let j=i+1;j<customers.length;j++){
-      const a=customers[i], b=customers[j];
-      const n1=(a.name||'').toLowerCase().replace(/\s/g,'');
-      const n2=(b.name||'').toLowerCase().replace(/\s/g,'');
-      if (!n1 || !n2) continue;
-      const sim = nameSimilarity(n1,n2);
-      if (sim >= 0.85 && last4(a.phone) && last4(a.phone)===last4(b.phone)) {
-        out.push([a,b,'氏名類似 + 電話下4桁一致']);
-      }
-    }
-  }
-
-  function pushPairs(list, reason){
-    for(let i=0;i<list.length;i++){
-      for(let j=i+1;j<list.length;j++){
-        out.push([list[i], list[j], reason]);
-      }
-    }
-  }
-  return out;
-}
-function nameSimilarity(a,b){ const dist = levenshtein(a,b); const maxLen = Math.max(a.length,b.length) || 1; return 1 - dist/maxLen; }
-function levenshtein(a,b){
-  const m = a.length, n = b.length;
-  const dp = Array.from({length:m+1}, ()=>Array(n+1).fill(0));
-  for(let i=0;i<=m;i++) dp[i][0]=i;
-  for(let j=0;j<=n;j++) dp[0][j]=j;
-  for(let i=1;i<=m;i++){
-    for(let j=1;j<=n;j++){
-      const cost = a[i-1]===b[j-1] ? 0 : 1;
-      dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
-    }
-  }
-  return dp[m][n];
-}
-function renderDupes(){
-  const tb = qs('#dupesTbody'); tb.innerHTML='';
-  for(const [a,b,why] of state.dupes){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${esc(a.name||a.email||a.phone||'')}</td>
-      <td>${esc(b.name||b.email||b.phone||'')}</td>
-      <td>${esc(why)}</td>
-    `;
-    tb.appendChild(tr);
-  }
-  qs('#toggleDuplicates').disabled = state.dupes.length===0;
-}
-function showDupes(show){ qs('#dupesPanel').setAttribute('aria-hidden', show?'false':'true'); }
-
-// ===== 保存済み条件 =====
-function saveCurrentSegment(){
-  const name = qs('#segmentName').value.trim();
-  if(!name) return alert('保存名を入力してください。');
-  const seg = {
-    q: qs('#q').value, from: qs('#from').value, to: qs('#to').value,
-    menu: qs('#menuFilter').value, tag: qs('#tagFilter').value,
-    quick: qs('#quickSeg').value, follow: qs('#followOnly').checked,
-    sort: qs('#sort').value
-  };
-  const key = 'crm_segments';
-  const list = JSON.parse(localStorage.getItem(key) || '[]').filter(s=>s.name!==name);
-  list.push({ name, seg });
-  localStorage.setItem(key, JSON.stringify(list));
-  loadSavedSegments();
-  qs('#segmentName').value='';
-  showToast('条件を保存しました', 'success');
-}
-function loadSavedSegments(){
-  const key='crm_segments';
-  const list = JSON.parse(localStorage.getItem(key) || '[]');
-  const sel = qs('#savedSegments');
-  sel.innerHTML = `<option value="">保存済み条件…</option>` + list.map((s,i)=>`<option value="${i}">${esc(s.name)}</option>`).join('');
-}
-function applySelectedSegment(){
-  const key='crm_segments';
-  const list = JSON.parse(localStorage.getItem(key) || '[]');
-  const idx = Number(qs('#savedSegments').value);
-  if (isNaN(idx) || list[idx]==null) return;
-  const s = list[idx].seg;
-  qs('#q').value = s.q||'';
-  qs('#from').value = s.from||'';
-  qs('#to').value = s.to||'';
-  qs('#menuFilter').value = s.menu||'';
-  qs('#tagFilter').value = s.tag||'';
-  qs('#quickSeg').value = s.quick||'';
-  qs('#followOnly').checked = !!s.follow;
-  qs('#sort').value = s.sort||'lastReservation:desc';
-  applyFilter();
-  showToast('条件を適用しました', 'success');
-}
-function deleteSelectedSegment(){
-  const key='crm_segments';
-  const list = JSON.parse(localStorage.getItem(key) || '[]');
-  const idx = Number(qs('#savedSegments').value);
-  if (isNaN(idx) || list[idx]==null) return;
-  const name = list[idx].name;
-  if(!confirm(`「${name}」を削除しますか？`)) return;
-  list.splice(idx,1);
-  localStorage.setItem(key, JSON.stringify(list));
-  loadSavedSegments();
-  showToast('削除しました', 'success');
-}
-
-// ===== CSV =====
-function exportCsv(){
-  const headers = [
-    '氏名','氏名（カナ）','性別','電話','メール','住所','生年月日',
-    '初回予約日','最終予約日','回数','直近メニュー','担当者',
-    'タグ','メモ','注意事項','配信同意(メール)','配信同意(LINE)','同意日',
-    '紹介者','紹介コード','回数券','残回数','券期限',
-    '自動セグメント'
-  ];
-  const rows = state.filtered.map(r=>{
-    const auto = (r._auto||[]).map(a=>a.label).join(' ');
-    return [
-      r.name||'', r.kana||'', r.gender||'', r.phone||'', r.email||'', r.address||'', (r.birthdate||'').slice(0,10),
-      fmt(r.firstReservation), fmt(r.lastReservation),
-      r.totalReservations??0, r.lastMenu||r.lastItems||'', r.staff||'',
-      (r.tags||[]).join(' '), r.memo||'', r.attention||'',
-      toBool(r.optInEmail)?'TRUE':'FALSE', toBool(r.optInLine)?'TRUE':'FALSE', (r.consentDate||'').slice(0,10),
-      r.referredBy||'', r.referralCode||'', r.ticketType||'', r.ticketRemaining||'', (r.ticketExpiry||'').slice(0,10),
-      auto
-    ];
-  });
-
-  const csv = [headers,...rows].map(line=>line.map(v=>(/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g,'""')}"` : v)).join(',')).join('\n');
-  const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  const a=document.createElement('a'); a.href=url; a.download=`customers_${new Date().toISOString().slice(0,10)}.csv`; a.click(); URL.revokeObjectURL(url);
-  showToast('CSVを書き出しました', 'success');
-}
-
-// ===== token表示（任意） =====
-async function maybeHandleTokenView(){
-  const p = new URLSearchParams(location.search); const token=p.get('token'); if(!token) return;
-  qs('#tokenView').style.display='';
-  try{
-    const res=await fetch(`${GAS_WEBAPP_URL}?op=view&format=json&token=${encodeURIComponent(token)}`);
-    qs('#tokenResult').textContent = JSON.stringify(await res.json(), null, 2);
-  }catch(e){ qs('#tokenResult').textContent='読み込みに失敗しました。'; }
-}
-
-// ===== Column Visibility =====
+// ===== Column Visibility (ヘッダー右クリック) =====
 function getColumnsMeta(){
-  // 現在のヘッダーから列名を取得（9列想定だが動的対応）
   const ths = qsa('#customers thead th');
   return ths.map((th, i)=>({ index:i+1, label: th.textContent.trim() || `列${i+1}` }));
 }
@@ -804,13 +637,10 @@ function applyColumnVisibility(){
   const meta = getColumnsMeta();
   const table = qs('#customers');
   if (!table) return;
-  // まず既存 hide-col-* を外す
   for(let i=1;i<=meta.length;i++){ table.classList.remove(`hide-col-${i}`); }
-  // 設定が空なら全部表示で終了
   if (!Array.isArray(cols) || cols.length===0) return;
-  // false の列に hide クラスを当てる
   meta.forEach((m,idx)=>{
-    const visible = cols[idx] !== false; // デフォルトtrue
+    const visible = cols[idx] !== false;
     if (!visible) table.classList.add(`hide-col-${m.index}`);
   });
 }
@@ -831,7 +661,7 @@ function openColumnMenuAt(x, y){
     row.className = 'row';
     const ck = document.createElement('input');
     ck.type='checkbox';
-    const visible = cols[idx] !== false; // 未定義はtrue
+    const visible = cols[idx] !== false;
     ck.checked = visible;
     ck.addEventListener('change', ()=>{
       const next = (Array.isArray(settings.cols) && settings.cols.slice(0, meta.length)) || new Array(meta.length).fill(true);
@@ -889,10 +719,7 @@ function ensureKbar(){
     { title:'クイック：新規のみ', run: ()=>{ qs('#quickSeg').value='new'; applyFilter(); } },
     { title:'クイック：常連のみ', run: ()=>{ qs('#quickSeg').value='loyal'; applyFilter(); } },
     { title:'クイック：休眠のみ', run: ()=>{ qs('#quickSeg').value='idle'; applyFilter(); } },
-    { title:'クイック：解除',     run: ()=>{ qs('#quickSeg').value=''; applyFilter(); } },
-    { title:'重複候補を表示', run: ()=> showDupes(true) },
-    { title:'重複候補を閉じる', run: ()=> showDupes(false) },
-    { title:'検索にフォーカス', run: ()=>{ qs('#q').focus(); } },
+    { title:'クイック：解除',     run: ()=>{ qs('#quickSeg').value=''; applyFilter(); } }
   ]);
 
   function open(){
@@ -1028,17 +855,6 @@ function attach(){
   document.body.classList.add('view-'+settings.view);
   selectViewRadio(settings.view);
 
-  // セグメント
-  qs('#saveSegment').addEventListener('click', saveCurrentSegment);
-  qs('#applySegment').addEventListener('click', applySelectedSegment);
-  qs('#deleteSegment').addEventListener('click', deleteSelectedSegment);
-  loadSavedSegments();
-
-  // 重複候補
-  qs('#toggleDuplicates').addEventListener('click', ()=>showDupes(true));
-  qs('#dupesPanel .close').addEventListener('click', ()=>showDupes(false));
-  qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
-
   // テーマ適用（初回）
   if (settings.theme !== 'system') applyTheme();
 
@@ -1054,21 +870,17 @@ function attach(){
     const tag = (e.target.tagName || '').toLowerCase();
     const typing = tag==='input' || tag==='textarea' || e.target.isContentEditable;
 
-    // / で検索フォーカス（入力中は無効）
     if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       qs('#q').focus();
       return;
     }
-    // ⌘/Ctrl + K = コマンドパレット
     if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
       e.preventDefault(); openKbar(); return;
     }
-    // Alt + T = テーマトグル
     if (e.key.toLowerCase() === 't' && e.altKey) {
       e.preventDefault(); toggleThemeQuick(); return;
     }
-    // 行選択（表）
     if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       e.preventDefault();
       moveFocus(e.key==='ArrowDown' ? 1 : -1);
@@ -1078,12 +890,9 @@ function attach(){
       openFocused();
       return;
     }
-    // ESC で各種モーダル類を閉じる（優先度：KBar → 重複 → ドロワー）
     if (e.key === 'Escape') {
       const kbar = document.getElementById('kbar');
       if (kbar && !kbar.hidden){ kbar.closeKbar(); return; }
-      const dupesOpen = qs('#dupesPanel')?.getAttribute('aria-hidden')==='false';
-      if (dupesOpen){ showDupes(false); return; }
       const drawerOpen = qs('#drawer')?.getAttribute('aria-hidden')==='false';
       if (drawerOpen){ closeDrawer(); return; }
     }
@@ -1097,7 +906,14 @@ function attach(){
     setGlobalLoading(true, 'データを読み込んでいます…');
     attach();
     wireLoadingRetry();
-    await maybeHandleTokenView();
+    await (async function maybeHandleTokenView(){
+      const p = new URLSearchParams(location.search); const token=p.get('token'); if(!token) return;
+      qs('#tokenView').style.display='';
+      try{
+        const res=await fetch(`${GAS_WEBAPP_URL}?op=view&format=json&token=${encodeURIComponent(token)}`);
+        qs('#tokenResult').textContent = JSON.stringify(await res.json(), null, 2);
+      }catch(e){ qs('#tokenResult').textContent='読み込みに失敗しました。'; }
+    })();
     await loadData();
     setGlobalLoading(false);
   } catch(e){
