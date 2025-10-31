@@ -1,7 +1,7 @@
 /* =========================================================
-   Premium CRM UI - manage.css
+   Premium CRM UI - manage.css (Mobile-polished)
    - 既存の HTML/JS セレクタは不変
-   - ダーク/ライト自動、カスタムテーマは :root 変数で
+   - ローディング/ダークモード/高品位UI + スマホ最適化
    ========================================================= */
 
 /* ---------- Reset / Base ---------- */
@@ -26,7 +26,7 @@ html, body {
   --danger:     #ef4444;
   --ring:       color-mix(in hsl, var(--brand) 50%, white);
 
-  /* Surfaces / text (light as default variables for mix) */
+  /* Surfaces / text (dark default for backdrop mixes) */
   --bg:         #0b0d12;
   --surface:    #11141a;
   --surface-2:  #171b23;
@@ -100,7 +100,7 @@ header {
 
 header > h1 {
   margin: 0;
-  padding: 20px 24px 6px;
+  padding: 18px 16px 6px;
   font-weight: 700;
   font-size: clamp(18px, 2.1vw, 22px);
   letter-spacing: .02em;
@@ -119,7 +119,7 @@ header .tools.row2 {
   padding-bottom: 18px;
 }
 
-/* レスポンシブ分配（美しく折り返す） */
+/* レスポンシブ分配（デスクトップ〜タブレット） */
 #q { grid-column: span 4; }
 #from, .tilde, #to { grid-column: span 1; }
 #menuFilter { grid-column: span 2; }
@@ -129,6 +129,7 @@ header .tools.row2 {
 #sort { grid-column: span 2; }
 #reload, #exportCsv { grid-column: span 1; min-width: 100px; }
 
+/* タブレット幅 */
 @media (max-width: 1100px) {
   header .tools { grid-template-columns: repeat(6, 1fr); }
   #q { grid-column: span 6; }
@@ -136,11 +137,35 @@ header .tools.row2 {
   #menuFilter, #tagFilter, #quickSeg, .inline, #sort { grid-column: span 3; }
   #reload, #exportCsv { grid-column: span 3; }
 }
+
+/* スマホ幅（縦） */
 @media (max-width: 680px) {
-  header .tools { grid-template-columns: repeat(2, 1fr); }
+  html { font-size: 16px; }
+  header .tools { grid-template-columns: repeat(2, 1fr); grid-auto-flow: dense; }
   #q, #menuFilter, #tagFilter, #quickSeg, .inline, #sort, #reload, #exportCsv { grid-column: 1 / -1; }
-  #from, .tilde, #to { grid-column: span 1; }
-  .tilde { text-align: center; }
+  #from, #to { grid-column: span 1; }
+  .tilde { grid-column: span 1; text-align: center; color: var(--muted); }
+  /* ボタンは押しやすく */
+  button { height: 44px; }
+}
+
+/* とても小さい端末（狭幅） */
+@media (max-width: 480px) {
+  header > h1 { padding: 14px 12px 4px; font-size: 18px; }
+  header .tools { grid-template-columns: 1fr; }
+  /* 日付レンジは縦積み（記号は省略） */
+  .tilde { display: none; }
+  #from, #to { grid-column: 1 / -1; }
+
+  /* トグルは1行フル幅 */
+  .view-toggle { grid-column: 1 / -1; width: 100%; justify-content: space-between; }
+  .view-toggle label { flex: 1 1 33%; text-align: center; }
+
+  /* セグメント保存UIは折り返し */
+  .segmented { display: flex; flex-wrap: wrap; gap: 8px; grid-column: 1 / -1; }
+  .segmented input { flex: 1 1 100%; }
+  .segmented button, .segmented select { flex: 1 1 calc(50% - 8px); min-width: 120px; }
+  #reload, #exportCsv { width: 100%; min-width: unset; }
 }
 
 /* ---------- Controls ---------- */
@@ -153,7 +178,7 @@ input[type="number"],
 select,
 textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -203,7 +228,7 @@ select {
 }
 .view-toggle label {
   position: relative;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border-radius: 999px;
   cursor: pointer;
   user-select: none;
@@ -217,7 +242,7 @@ select {
   box-shadow: 0 10px 20px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.02);
 }
 
-/* “保存条件” パーツ */
+/* “保存条件” パーツ（デスクトップ基準） */
 .segmented {
   display: grid;
   grid-template-columns: 1fr auto auto auto auto;
@@ -254,9 +279,7 @@ button:active { transform: translateY(1px); }
   border-color: var(--brand-600);
   color: #fff;
 }
-#exportCsv:hover {
-  background: var(--brand-600);
-}
+#exportCsv:hover { background: var(--brand-600); }
 
 .inline {
   display: inline-flex;
@@ -270,6 +293,9 @@ main {
   max-width: 1400px;
   margin: 24px auto 80px;
   padding: 0 16px;
+}
+@media (max-width: 680px) {
+  main { margin: 16px auto 56px; padding: 0 12px; }
 }
 
 /* Table (Desktop) */
@@ -302,13 +328,10 @@ tbody td {
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
-tbody tr {
-  transition: background .15s ease;
-}
-tbody tr:hover {
-  background: color-mix(in hsl, var(--brand) 8%, transparent);
-  cursor: pointer;
-}
+tbody tr { transition: background .15s ease; }
+tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cursor: pointer; }
+
+/* スマホでは表はカード表示に切替（下の View switching で制御） */
 .cell-contacts a {
   display: inline-flex;
   align-items: center;
@@ -363,7 +386,7 @@ tbody tr:hover {
 #drawer[aria-hidden="false"] {
   position: fixed; inset: 0;
   display: grid;
-  grid-template-columns: 1fr min(520px, 94vw);
+  grid-template-columns: 1fr min(520px, 100vw);
   background: color-mix(in hsl, #000 45%, transparent);
   backdrop-filter: blur(6px);
   transition: opacity .2s ease-in-out;
@@ -371,13 +394,17 @@ tbody tr:hover {
   z-index: 60;
 }
 #drawer .drawer-inner {
-  height: 100dvh;
+  height: 100dvh; /* モバイルでの表示領域 */
   overflow: auto;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-2);
   padding: 20px 18px 40px;
   animation: slideIn .18s ease-out;
+}
+/* iOS Safe Area 対応 */
+@supports (padding: max(0px)) {
+  #drawer .drawer-inner { padding-bottom: max(40px, env(safe-area-inset-bottom) + 16px); }
 }
 @keyframes slideIn {
   from { transform: translateX(20px); opacity: .6; }
@@ -403,7 +430,7 @@ tbody tr:hover {
 /* Quick actions */
 #quickActions a {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 10px; margin-right: 6px;
+  padding: 6px 10px; margin-right: 6px; margin-bottom: 6px;
   border-radius: 10px; text-decoration: none;
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -441,13 +468,20 @@ tbody tr:hover {
   padding: 16px;
 }
 .note-editor label { color: var(--muted); font-weight: 600; }
-.note-editor .checks {
-  display: inline-flex; gap: 14px; align-items: center;
-}
-.note-editor .actions {
-  display: flex; align-items: center; gap: 12px; margin-top: 10px;
-}
+.note-editor .checks { display: inline-flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.note-editor .actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 .save-status { color: var(--muted); font-weight: 600; }
+
+/* タブレットで少し詰める */
+@media (max-width: 900px) {
+  .note-editor .grid { grid-template-columns: 120px 1fr; }
+}
+
+/* スマホでは1カラム化（ラベル→入力の縦並び） */
+@media (max-width: 680px) {
+  .note-editor .grid { grid-template-columns: 1fr; }
+  .note-editor label { margin-top: 4px; }
+}
 
 /* Drawer history table */
 #history thead th { top: 0; }
@@ -463,8 +497,12 @@ tbody tr:hover {
 #history .memo-edit, #history .resched-btn, .do-resched, .cancel-resched {
   height: 32px; padding: 0 10px; border-radius: 8px; font-weight: 700;
 }
-#history .resched-editor {
-  display: inline-flex; gap: 6px; align-items: center; margin-left: 6px;
+#history .resched-editor { display: inline-flex; gap: 6px; align-items: center; margin-left: 6px; }
+
+/* スマホで履歴テーブルを横スクロール可能に */
+@media (max-width: 680px) {
+  #history { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #history thead, #history tbody, #history tr, #history th, #history td { white-space: nowrap; }
 }
 
 /* “要フォロー” インジケータ */
@@ -507,6 +545,9 @@ tbody tr:hover {
 .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: color-mix(in hsl, var(--brand) 26%, var(--border)); }
 .card .name { font-size: 16px; font-weight: 700; }
 .card .meta { color: var(--text-weak); font-size: 12.5px; margin: 4px 0 8px; }
+@media (max-width: 560px) {
+  .cards { grid-template-columns: 1fr; } /* 極小端末は1列 */
+}
 
 /* Dupes panel (modal) */
 #dupesPanel[aria-hidden="true"] {
@@ -572,6 +613,9 @@ tbody tr:hover {
   background: color-mix(in hsl, var(--surface-2) 75%, var(--brand) 25%);
   transform: translateY(-1px);
 }
+@media (max-width: 680px) {
+  .cell-actions a { width: 40px; height: 40px; } /* タップしやすく */
+}
 
 /* Tiny helpers */
 .tilde { color: var(--muted); }
@@ -625,7 +669,7 @@ body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 }
 
 #loading .retry {
-  height: 40px;
+  height: 44px;
   padding: 0 14px;
   border-radius: 12px;
   border: 1px solid var(--brand);
@@ -637,6 +681,11 @@ body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
 
 /* ロード中はスクロールを固定 */
 body.is-loading { overflow: hidden; }
+
+/* 新しいビューポート単位対応（Android Chrome/iOS Safari） */
+@supports (height: 100lvh) {
+  #drawer .drawer-inner { height: 100lvh; }
+}
 
 /* Print */
 @media print {
