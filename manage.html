@@ -98,77 +98,86 @@
     <!-- モバイル向け：カード -->
     <section id="cardsSection" class="cards" aria-hidden="true"></section>
 
-    <!-- 右ドロワー：顧客プロファイル + 来店履歴 -->
+    <!-- 右ドロワー：顧客プロファイル + 来店履歴（PCは2カラム） -->
     <section id="drawer" aria-hidden="true">
       <div class="drawer-inner">
         <button class="close" aria-label="閉じる">×</button>
         <h2 id="drawerTitle">顧客プロファイル & 来店履歴</h2>
 
-        <div class="quick-actions" id="quickActions"></div>
+        <div class="drawer-grid">
+          <!-- 左：プロファイル＆流入元 -->
+          <div class="profile-col">
+            <div class="quick-actions" id="quickActions"></div>
 
-        <!-- 流入元カウント -->
-        <h3>予約の流入元カウント</h3>
-        <div id="sourceStats" class="srcstats" aria-live="polite"></div>
+            <h3>予約の流入元カウント</h3>
+            <div id="sourceStats" class="srcstats" aria-live="polite"></div>
 
-        <div class="note-editor">
-          <div class="grid">
-            <label>氏名</label>           <input id="editName" type="text" />
-            <label>氏名（カナ）</label>   <input id="editKana" type="text" />
-            <label>性別</label>
-            <select id="editGender">
-              <option value="">未選択</option>
-              <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
-            </select>
-            <label>電話番号</label>       <input id="editPhone" type="tel" />
-            <label>メールアドレス</label> <input id="editEmail" type="email" />
-            <label>住所</label>           <input id="editAddress" type="text" />
-            <label>生年月日</label>       <input id="editBirthdate" type="date" />
-            <label>担当者</label>         <input id="editStaff" type="text" />
+            <div class="note-editor">
+              <div class="grid">
+                <label>氏名</label>           <input id="editName" type="text" />
+                <label>氏名（カナ）</label>   <input id="editKana" type="text" />
+                <label>性別</label>
+                <select id="editGender">
+                  <option value="">未選択</option>
+                  <option>男性</option><option>女性</option><option>その他</option><option>未回答</option>
+                </select>
+                <label>電話番号</label>       <input id="editPhone" type="tel" />
+                <label>メールアドレス</label> <input id="editEmail" type="email" />
+                <label>住所</label>           <input id="editAddress" type="text" />
+                <label>生年月日</label>       <input id="editBirthdate" type="date" />
+                <label>担当者</label>         <input id="editStaff" type="text" />
 
-            <label>タグ</label>           <input id="editTags" type="text" placeholder="カンマ区切り（例：VIP, 常連）" />
-            <label>メモ</label>           <textarea id="editMemo" rows="3" placeholder="任意メモ"></textarea>
+                <label>タグ</label>           <input id="editTags" type="text" placeholder="カンマ区切り（例：VIP, 常連）" />
+                <label>メモ</label>           <textarea id="editMemo" rows="3" placeholder="任意メモ"></textarea>
 
-            <label>注意事項</label>       <textarea id="editAttention" rows="2" placeholder="アレルギー等、配慮点"></textarea>
-            <label>配信同意</label>
-            <div class="checks">
-              <label><input type="checkbox" id="editOptEmail" />メール</label>
-              <label><input type="checkbox" id="editOptLine" />LINE</label>
+                <label>注意事項</label>       <textarea id="editAttention" rows="2" placeholder="アレルギー等、配慮点"></textarea>
+                <label>配信同意</label>
+                <div class="checks">
+                  <label><input type="checkbox" id="editOptEmail" />メール</label>
+                  <label><input type="checkbox" id="editOptLine" />LINE</label>
+                </div>
+                <label>同意日</label>         <input id="editConsentDate" type="date" />
+
+                <label>紹介者</label>         <input id="editReferredBy" type="text" placeholder="紹介者名/コード" />
+                <label>紹介コード</label>     <input id="editReferralCode" type="text" />
+
+                <label>回数券</label>         <input id="editTicketType" type="text" placeholder="例：10回券" />
+                <label>残回数</label>         <input id="editTicketRemain" type="number" min="0" />
+                <label>有効期限</label>       <input id="editTicketExpiry" type="date" />
+
+                <label>初回予約日</label>     <input id="editFirst" type="text" readonly />
+                <label>最終予約日</label>     <input id="editLast" type="text" readonly />
+              </div>
+
+              <div id="lastIndicator" class="last-indicator"></div>
+
+              <div class="row actions">
+                <button id="editToggle" type="button">編集</button>
+                <button id="saveNote" type="button" hidden>保存</button>
+                <button id="cancelEdit" type="button" hidden>キャンセル</button>
+                <span id="saveStatus" class="save-status" aria-live="polite"></span>
+              </div>
             </div>
-            <label>同意日</label>         <input id="editConsentDate" type="date" />
-
-            <label>紹介者</label>         <input id="editReferredBy" type="text" placeholder="紹介者名/コード" />
-            <label>紹介コード</label>     <input id="editReferralCode" type="text" />
-
-            <label>回数券</label>         <input id="editTicketType" type="text" placeholder="例：10回券" />
-            <label>残回数</label>         <input id="editTicketRemain" type="number" min="0" />
-            <label>有効期限</label>       <input id="editTicketExpiry" type="date" />
-
-            <label>初回予約日</label>     <input id="editFirst" type="text" readonly />
-            <label>最終予約日</label>     <input id="editLast" type="text" readonly />
           </div>
-          <div id="lastIndicator" class="last-indicator"></div>
-          <div class="row actions">
-            <button id="editToggle" type="button">編集</button>
-            <button id="saveNote" type="button" hidden>保存</button>
-            <button id="cancelEdit" type="button" hidden>キャンセル</button>
-            <span id="saveStatus" class="save-status" aria-live="polite"></span>
+
+          <!-- 右：来店履歴 -->
+          <div class="history-col">
+            <h3>来店履歴</h3>
+            <table id="history">
+              <thead>
+                <tr>
+                  <th>日時</th>
+                  <th>メニュー</th>
+                  <th>項目</th>
+                  <th>流入元</th>
+                  <th>メモ</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
           </div>
         </div>
-
-        <h3>来店履歴</h3>
-        <table id="history">
-          <thead>
-            <tr>
-              <th>日時</th>
-              <th>メニュー</th>
-              <th>項目</th>
-              <th>流入元</th>
-              <th>メモ</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
       </div>
     </section>
 
