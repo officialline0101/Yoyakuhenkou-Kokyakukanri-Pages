@@ -17,8 +17,8 @@ const state = {
   selectedCustomerKey: null,
   distinctMenus: [],
   dupes: [],
-  editMode: false,                 // ← 追加：編集ゲート
-  editSnapshot: null               // ← 追加：キャンセル用スナップショット
+  editMode: false,
+  editSnapshot: null
 };
 
 // ===== Util =====
@@ -30,12 +30,13 @@ const fmt = iso => {
   const d=new Date(iso); if(isNaN(d)) return iso;
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 };
-const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim(); // 互換のため残す
+const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
 function getKey(obj){ return (obj && (obj.key || (obj.email || obj.phone || obj.name)))?.toLowerCase().trim() || ''; }
 
 const parseAnyDate = v => v ? new Date(v) : null;
-const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`; // "YYYY-MM-DDTHH:mm" -> +09:00 付
+const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`;
 
+// GET helper
 async function fetchJson(url){
   const res = await fetch(url, { method:'GET' });
   const j = await res.json().catch(()=>null);
@@ -295,7 +296,7 @@ function openDrawer(customer){
   }
   renderSourceStats(srcCounts);
 
-  // 履歴テーブル描画（モバイルで積み上げ表示できるよう data-label 付与）
+  // 履歴テーブル（モバイル積み上げ対応）
   const tb = qs('#history tbody'); if (!tb) { console.warn('#history tbody not found'); return; }
   tb.innerHTML='';
   const now = Date.now();
@@ -327,7 +328,7 @@ function openDrawer(customer){
     tb.appendChild(tr);
   }
 
-  // 行内のイベント付与
+  // 行内イベント
   tb.querySelectorAll('.memo-edit').forEach(btn=>{
     btn.addEventListener('click', async (e)=>{
       const tr = e.target.closest('tr');
@@ -390,10 +391,10 @@ function openDrawer(customer){
     customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : ''
   ].filter(Boolean).join('');
 
-  // 編集フォーム値セット
+  // フォーム値
   fillProfileForm(customer);
 
-  // 初期は編集不可（編集ゲート OFF）
+  // 初期は編集不可（編集ゲート）
   setEditMode(false);
 
   const drawer=qs('#drawer');
@@ -426,7 +427,6 @@ function fillProfileForm(customer){
   setVal('#editFirst', fmt(customer.firstReservation) || '');
   setVal('#editLast', fmt(customer.lastReservation)  || '');
   qs('#saveStatus').textContent = '';
-  // キャンセル用スナップショット
   state.editSnapshot = JSON.parse(JSON.stringify(customer || {}));
 }
 
@@ -434,11 +434,9 @@ function setEditMode(on){
   state.editMode = !!on;
   const grid = document.querySelector('.note-editor .grid');
   if (grid) grid.querySelectorAll('input, select, textarea').forEach(el => {
-    // 初回/最終予約は読み取り専用維持
     if (el.id === 'editFirst' || el.id === 'editLast') { el.readOnly = true; el.disabled = true; return; }
     el.disabled = !on;
   });
-  // ボタン表示切替
   qs('#editToggle').hidden = !!on;
   qs('#saveNote').hidden = !on;
   qs('#cancelEdit').hidden = !on;
@@ -460,7 +458,7 @@ function renderSourceStats(counts){
   wrap.innerHTML = entries.map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`).join(' ');
 }
 
-// ===== 保存 =====
+// ===== 保存（POST） =====
 async function postJSON(body){
   const res = await fetch(GAS_WEBAPP_URL, {
     method:'POST',
@@ -473,7 +471,7 @@ async function postJSON(body){
 }
 
 async function saveNote(){
-  if (!state.editMode) return; // 編集モード時のみ保存
+  if (!state.editMode) return;
   const key = state.selectedCustomerKey; if(!key) return;
 
   const body = {
@@ -689,7 +687,6 @@ function attach(){
   // 編集ゲート：編集/保存/キャンセル
   qs('#editToggle').addEventListener('click', ()=> setEditMode(true));
   qs('#cancelEdit').addEventListener('click', ()=>{
-    // スナップショットに戻して編集オフ
     if (state.editSnapshot) fillProfileForm(state.editSnapshot);
     setEditMode(false);
     qs('#saveStatus').textContent = '';
