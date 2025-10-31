@@ -1,923 +1,488 @@
-// ▼▼ 接続設定 ▼▼
-const GAS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzHAkmuVd8ap40sKMEDFs73ji1YlCRxPxu3xRfmRq0S7XUzptjMAp8gkp8WeHvadMWu/exec';
-const SECURITY_SECRET = '9f3a7c1e5b2d48a0c6e1f4d9b3a8c2e7d5f0a1b6c3d8e2f7a9b0c4e6d1f3a5b7';
+/* =========================================================
+   Premium CRM UI - manage.css
+   ========================================================= */
 
-// オートセグメントしきい値
-const FOLLOWUP_THRESHOLD_DAYS = 90;
-const LOYAL_MIN_VISITS = 5;
-const NEW_THRESHOLD_DAYS = 30;
-const TICKET_EXPIRY_SOON_DAYS = 30;
+/* ---------- Reset / Base ---------- */
+*,
+*::before,
+*::after { box-sizing: border-box; }
 
-// ===== Settings (localStorage) =====
-const LS = {
-  theme: 'crm_theme',          // 'system' | 'light' | 'dark'
-  cols:  'crm_cols',           // boolean[] 長さ=列数
-  view:  'crm_viewMode',       // 'auto' | 'mobile' | 'desktop'
-  per:   'crm_perPage',        // 20/50/100...
-  sort:  'crm_sort'            // e.g. 'lastReservation:desc'
-};
-const settings = {
-  get theme(){ return localStorage.getItem(LS.theme) || 'system'; },
-  set theme(v){ localStorage.setItem(LS.theme, v); applyTheme(); },
-  get cols(){ try { return JSON.parse(localStorage.getItem(LS.cols) || '[]'); } catch { return []; } },
-  set cols(arr){ localStorage.setItem(LS.cols, JSON.stringify(arr)); applyColumnVisibility(); },
-  get view(){ return localStorage.getItem(LS.view) || 'auto'; },
-  set view(v){ localStorage.setItem(LS.view, v); document.body.classList.remove('view-auto','view-mobile','view-desktop'); document.body.classList.add('view-'+v); selectViewRadio(v); },
-  get per(){ return Number(localStorage.getItem(LS.per) || '20'); },
-  set per(n){ localStorage.setItem(LS.per, String(n)); state.perPage = n; state.page = 1; render(); showToast(`1ページ ${n} 件表示`, 'success'); },
-  get sort(){ return localStorage.getItem(LS.sort) || 'lastReservation:desc'; },
-  set sort(s){ localStorage.setItem(LS.sort, s); }
-};
-
-const state = {
-  customers: [],
-  reservations: [],
-  filtered: [],
-  page: 1, perPage: settings.per,
-  sortKey: 'lastReservation', sortDir: 'desc',
-  selectedCustomerKey: null,
-  distinctMenus: [],
-  editMode: false,
-  editSnapshot: null,
-  focusIndex: -1 // 現ページ内のフォーカス行
-};
-
-// ===== Util =====
-const qs = s => document.querySelector(s);
-const qsa = s => Array.from(document.querySelectorAll(s));
-const esc = s => String(s ?? '').replace(/[&<>"']/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
-const z = n => String(n).padStart(2,'0');
-const fmt = iso => {
-  if(!iso) return '';
-  const d=new Date(iso); if(isNaN(d)) return iso;
-  return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
-};
-const keyOf = r => (r.email || r.phone || r.name || '').toLowerCase().trim();
-function getKey(obj){ return (obj && (obj.key || (obj.email || obj.phone || obj.name)))?.toLowerCase().trim() || ''; }
-
-const parseAnyDate = v => v ? new Date(v) : null;
-const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`;
-
-// 高速化：デバウンス
-function debounce(fn, wait=300){
-  let t; return (...args)=>{ clearTimeout(t); t = setTimeout(()=>fn.apply(null,args), wait); };
+html, body {
+  height: 100%;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-// 検索ハイライト
-function escapeRegExp(s){ return s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'); }
-function highlightText(text, query){
-  const s = String(text ?? '');
-  const q = String(query ?? '').trim();
-  if(!q) return esc(s);
-  const terms = q.split(/\s+/).filter(Boolean).map(escapeRegExp);
-  if(terms.length===0) return esc(s);
-  try{
-    const r = new RegExp(terms.join('|'), 'ig');
-    let out = '', last = 0;
-    s.replace(r, (m, _1, idx) => {
-      out += esc(s.slice(last, idx)) + `<mark class="hl">${esc(m)}</mark>`;
-      last = idx + m.length;
-      return m;
-    });
-    out += esc(s.slice(last));
-    return out;
-  }catch{ return esc(s); }
+/* === Theme Tokens (Dark as default) === */
+:root {
+  --brand:      #6c5ce7;
+  --brand-600:  #5846d6;
+  --accent:     #22d3ee;
+  --ok:         #10b981;
+  --warn:       #f59e0b;
+  --danger:     #ef4444;
+  --ring:       color-mix(in hsl, var(--brand) 52%, white);
+
+  --bg:         #0b0e14;
+  --surface:    #11151d;
+  --surface-2:  #171c27;
+  --border:     #242b3a;
+  --muted:      #8c95aa;
+  --text:       #e8ebf4;
+  --text-weak:  #b9c0d3;
+
+  --radius:     16px;
+  --radius-sm:  12px;
+  --radius-xs:  10px;
+  --shadow-1:   0 10px 30px rgba(0,0,0,.28), 0 2px 10px rgba(0,0,0,.22);
+  --shadow-2:   0 14px 46px rgba(0,0,0,.38), 0 8px 20px rgba(0,0,0,.32);
+
+  --drawer-w:   560px;
+
+  color-scheme: dark;
 }
 
-// GET helper
-async function fetchJson(url){
-  const res = await fetch(url, { method:'GET' });
-  const j = await res.json().catch(()=>null);
-  if(!res.ok || !j || !j.ok) throw new Error(j?.error || `HTTP ${res.status}`);
-  return j.data || [];
-}
-
-// ===== Toasts =====
-function ensureToastHost(){
-  if (!document.getElementById('toastwrap')) {
-    const w = document.createElement('div');
-    w.id = 'toastwrap';
-    w.setAttribute('aria-live','polite');
-    document.body.appendChild(w);
-  }
-}
-function showToast(msg, type=''){
-  ensureToastHost();
-  const w = document.getElementById('toastwrap');
-  const t = document.createElement('div');
-  t.className = `toast ${type||''}`;
-  t.textContent = msg;
-  w.appendChild(t);
-  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .4s'; }, 2600);
-  setTimeout(()=>{ t.remove(); }, 3100);
-}
-
-// ===== Theme =====
-function applyTheme(){
-  const v = settings.theme; // 'system'|'light'|'dark'
-  const root = document.documentElement;
-  if (v === 'system') {
-    root.removeAttribute('data-theme');
-    showToast('テーマ：システムに従う', 'success');
-  } else {
-    root.setAttribute('data-theme', v);
-    showToast(`テーマ：${v==='dark'?'ダーク':'ライト'}`, 'success');
-  }
-}
-function toggleThemeQuick(){
-  const v = settings.theme;
-  const next = (v === 'dark') ? 'light' : 'dark';
-  settings.theme = next;
-}
-
-// ===== Global Loading Overlay =====
-function setGlobalLoading(on, text){
-  const el = document.querySelector('#loading');
-  if (!el) return;
-  if (text) el.querySelector('.loading-text').textContent = text;
-  el.setAttribute('aria-hidden', on ? 'false' : 'true');
-  document.body.classList.toggle('is-loading', !!on);
-}
-function showLoadError(msg){
-  setGlobalLoading(true, msg || '読み込みに失敗しました。');
-  const retryBtn = document.querySelector('#loading .retry');
-  if (retryBtn) retryBtn.hidden = false;
-}
-function wireLoadingRetry(){
-  const retryBtn = document.querySelector('#loading .retry');
-  if (!retryBtn || retryBtn.dataset.wired) return;
-  retryBtn.dataset.wired = '1';
-  retryBtn.addEventListener('click', async ()=>{
-    retryBtn.hidden = true;
-    setGlobalLoading(true, '再試行中…');
-    try { await loadData(); setGlobalLoading(false); }
-    catch(e){ console.error(e); showLoadError('再試行に失敗しました。ネットワークや権限をご確認ください。'); }
-  });
-}
-
-// ====== Data Load & Enhance ======
-async function loadData(){
-  const base = GAS_WEBAPP_URL;
-  const [customersRaw, reservationsRaw] = await Promise.all([
-    fetchJson(`${base}?resource=customers&secret=${encodeURIComponent(SECURITY_SECRET)}`),
-    fetchJson(`${base}?resource=reservations&secret=${encodeURIComponent(SECURITY_SECRET)}`)
-  ]);
-
-  // 正規化
-  state.reservations = (reservationsRaw || []).map(r=>{
-    const startD = parseAnyDate(r.startIso || r.start);
-    const endD   = parseAnyDate(r.endIso   || r.end);
-    return {
-      ...r,
-      key: (r.key || keyOf(r)),
-      startIso: startD ? `${startD.getFullYear()}-${z(startD.getMonth()+1)}-${z(startD.getDate())}T${z(startD.getHours())}:${z(startD.getMinutes())}:00+09:00` : '',
-      endIso:   endD   ? `${endD.getFullYear()}-${z(endD.getMonth()+1)}-${z(endD.getDate())}T${z(endD.getHours())}:${z(endD.getMinutes())}:00+09:00`   : '',
-      startMs: startD ? startD.getTime() : NaN,
-      endMs:   endD   ? endD.getTime()   : NaN,
-      memo: r.memo || '',
-      medium: r.medium || ''
-    };
-  });
-
-  state.customers = (customersRaw || []).map(c => ({
-    ...c,
-    firstReservation: c.firstReservationIso,
-    lastReservation:  c.lastReservationIso
-  })).map(enhanceCustomer);
-
-  state.distinctMenus = [...new Set(state.reservations.map(r => r.menu).filter(Boolean))].sort();
-  qs('#menuFilter').innerHTML =
-    `<option value="">メニュー：すべて</option>` + state.distinctMenus.map(m=>`<option value="${esc(m)}">${esc(m)}</option>`).join('');
-
-  // 列表示の復元 & ページサイズ復元
-  applyColumnVisibility();
-  state.perPage = settings.per;
-
-  applyFilter();
-}
-
-function enhanceCustomer(c){
-  const now = new Date();
-  const last = c.lastReservation ? new Date(c.lastReservation) : null;
-  const days = last ? Math.floor((now - last)/86400000) : null;
-
-  const auto = [];
-  if ((c.totalReservations||0) === 1 && last && (now - last)/86400000 <= NEW_THRESHOLD_DAYS) auto.push({k:'new', label:'新規'});
-  if ((c.totalReservations||0) >= LOYAL_MIN_VISITS && last && (now - last)/86400000 <= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'loyal', label:'常連'});
-  if (days!=null && days >= FOLLOWUP_THRESHOLD_DAYS) auto.push({k:'idle', label:`休眠`});
-
-  if (c.ticketExpiry) {
-    const exp = new Date(c.ticketExpiry);
-    if (!isNaN(exp) && exp - now <= TICKET_EXPIRY_SOON_DAYS*86400000 && exp - now > 0) {
-      auto.push({k:'ticket', label:'回数券期限近'});
-    }
-  }
-
-  const latestPast = c.latestPast ?? (!!last && (now - last) > 0);
-  const daysSinceLast = c.daysSinceLast ?? (last ? Math.floor((now - last)/86400000) : null);
-
-  return { ...c, _auto: auto, _idleDays: days, latestPast, daysSinceLast };
-}
-
-// ====== Filter / Sort / Render ======
-const applyFilterDebounced = debounce(applyFilter, 300);
-
-function applyFilter(){
-  const qVal = qs('#q').value.trim().toLowerCase();
-  const from = qs('#from').value ? new Date(qs('#from').value) : null;
-  const to   = qs('#to').value   ? new Date(qs('#to').value)   : null; if (to) to.setHours(23,59,59,999);
-  const menu = qs('#menuFilter').value;
-  const tagQ = qs('#tagFilter').value.trim().toLowerCase();
-  const quick = qs('#quickSeg').value;
-  const followOnly = qs('#followOnly').checked;
-
-  let arr = state.customers.filter(c =>
-    !qVal || [c.name,c.email,c.phone].some(v => (v||'').toLowerCase().includes(qVal))
-  );
-
-  if (tagQ) arr = arr.filter(c => (c.tags || []).some(t => t.toLowerCase().includes(tagQ)));
-
-  if (from || to || menu) {
-    const match = (cust) => {
-      const k = getKey(cust);
-      return state.reservations.some(r => {
-        if (getKey(r) !== k) return false;
-        const d = r.startIso ? new Date(r.startIso) : null;
-        if (from && (!d || d < from)) return false;
-        if (to   && (!d || d > to))   return false;
-        if (menu && r.menu !== menu)  return false;
-        return true;
-      });
-    };
-    arr = arr.filter(match);
-  }
-
-  if (quick === 'new') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='new'));
-  if (quick === 'loyal') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='loyal'));
-  if (quick === 'idle') arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle'));
-
-  if (followOnly) arr = arr.filter(c => (c._auto||[]).some(a => a.k==='idle' || a.k==='ticket'));
-
-  state.filtered = arr;
-  applySort();
-}
-
-function applySort(){
-  const [key,dir] = qs('#sort').value.split(':');
-  state.sortKey=key; state.sortDir=dir;
-  const m = dir==='asc' ? 1 : -1;
-  state.filtered.sort((a,b)=>{
-    const va=a[key]??'', vb=b[key]??'';
-    if (typeof va==='number' && typeof vb==='number') return (va - vb)*m;
-    return String(va).localeCompare(String(vb))*m;
-  });
-  settings.sort = qs('#sort').value;
-  state.page=1;
-  render();
-}
-
-function render(){ renderTable(); renderCards(); renderPager(); }
-
-function makeContactCell(r, qVal){
-  const phone = esc(r.phone||'');
-  const mail = esc(r.email||'');
-  const items = [];
-  if (phone) items.push(`<a href="tel:${phone}">📞 ${highlightText(r.phone||'', qVal)}</a>`);
-  if (mail) items.push(`<a href="mailto:${mail}">✉️ ${highlightText(r.email||'', qVal)}</a>`);
-  return `<div class="cell-contacts">${items.join('')}</div>`;
-}
-
-function makeActionLinks(r){
-  const phone = r.phone ? `<a href="tel:${esc(r.phone)}" title="電話">📞</a>` : '';
-  const mail  = r.email ? `<a href="mailto:${esc(r.email)}" title="メール">✉️</a>` : '';
-  const map   = r.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(r.address)}" target="_blank" title="地図">🗺️</a>` : '';
-  return `${phone}${mail}${map}`;
-}
-
-function renderTable(){
-  const tb = qs('#customers tbody'); tb.innerHTML='';
-  const qVal = qs('#q').value.trim();
-  const start=(state.page-1)*state.perPage, rows=state.filtered.slice(start, start+state.perPage);
-
-  if (rows.length === 0) {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="empty" colspan="9">該当する顧客が見つかりません。条件や期間、メニューを見直してください。</td>`;
-    tb.appendChild(tr);
-    return;
-  }
-
-  const frag = document.createDocumentFragment();
-  for(const r of rows){
-    const tr=document.createElement('tr');
-
-    const tagsHtml = (r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ');
-    const autoHtml = (r._auto||[]).map(a=>{
-      const cls = a.k==='idle'?'badge idle':(a.k==='loyal'?'badge loyal':(a.k==='new'?'badge new':'badge'));
-      return `<span class="${cls}">${esc(a.label)}</span>`;
-    }).join(' ');
-
-    const lastBadge = (()=>{
-      if (!r.lastReservation) return '';
-      return r.latestPast ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>` : ` <span class="badge future">未来</span>`;
-    })();
-
-    tr.innerHTML = `
-      <td>${highlightText(r.name || '', qVal)}${r._idleDays!=null && r._idleDays>=FOLLOWUP_THRESHOLD_DAYS ? ' <span class="badge idle">要フォロー</span>' : ''}</td>
-      <td>${makeContactCell(r, qVal)}</td>
-      <td>${highlightText(r.address||'', qVal)}</td>
-      <td>${fmt(r.lastReservation)}${lastBadge}</td>
-      <td>${r.totalReservations ?? 0}</td>
-      <td>${highlightText(r.lastMenu || r.lastItems || '', qVal)}</td>
-      <td>${highlightText(r.staff || '', qVal)}</td>
-      <td><div class="tags">${tagsHtml} ${autoHtml}</div></td>
-      <td class="cell-actions">${makeActionLinks(r)}</td>
-    `;
-    tr.addEventListener('click', (e)=>{ if (e.target.tagName === 'A') return; openDrawer(r); });
-    frag.appendChild(tr);
-  }
-  tb.appendChild(frag);
-  updateRowFocus();
-}
-
-function renderCards(){
-  const wrap = qs('#cardsSection'); wrap.innerHTML='';
-  const qVal = qs('#q').value.trim();
-  const start=(state.page-1)*state.perPage, rows=state.filtered.slice(start, start+state.perPage);
-
-  if (rows.length === 0) {
-    const div = document.createElement('div');
-    div.className = 'empty-card';
-    div.textContent = '該当する顧客が見つかりません。条件を調整してください。';
-    wrap.appendChild(div);
-    return;
-  }
-
-  const frag = document.createDocumentFragment();
-  for(const r of rows){
-    const div=document.createElement('div'); div.className='card';
-
-    const autoHtml = (r._auto||[]).map(a=>{
-      const cls = a.k==='idle'?'badge idle':(a.k==='loyal'?'badge loyal':(a.k==='new'?'badge new':'badge'));
-      return `<span class="${cls}">${esc(a.label)}</span>`;
-    }).join(' ');
-
-    const lastBadge = (()=>{
-      if (!r.lastReservation) return '';
-      return r.latestPast ? ` <span class="badge past">過去（${r.daysSinceLast ?? '-'}日前）</span>` : ` <span class="badge future">未来</span>`;
-    })();
-
-    div.innerHTML = `
-      <div class="name">${highlightText(r.name || r.email || r.phone || '', qVal)}</div>
-      <div class="meta">最終来店：${fmt(r.lastReservation)}${lastBadge} / 回数：${r.totalReservations ?? 0}</div>
-      <div>直近メニュー：${highlightText(r.lastMenu || r.lastItems || '', qVal)}</div>
-      <div>担当者：${highlightText(r.staff || '-', qVal)}</div>
-      <div class="tags">${(r.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join(' ')} ${autoHtml}</div>
-      <div style="margin-top:8px">${makeActionLinks(r)}</div>
-    `;
-    div.addEventListener('click', (e)=>{ if (e.target.tagName !== 'A') openDrawer(r); });
-    frag.appendChild(div);
-  }
-  wrap.appendChild(frag);
-}
-
-function renderPager(){
-  const pager=qs('#pager'), total=state.filtered.length, pages=Math.max(1,Math.ceil(total/state.perPage));
-  pager.innerHTML='';
-  const mk=(t,fn)=>{const b=document.createElement('button'); b.textContent=t; b.onclick=fn; return b;};
-  pager.appendChild(mk('«',()=>{state.page=1;render();}));
-  pager.appendChild(mk('‹',()=>{state.page=Math.max(1,state.page-1);render();}));
-  pager.appendChild(document.createTextNode(` ${state.page}/${pages} `));
-  pager.appendChild(mk('›',()=>{state.page=Math.min(pages,state.page+1);render();}));
-  pager.appendChild(mk('»',()=>{state.page=pages;render();}));
-}
-
-// ===== Drawer =====
-function openDrawer(customer){
-  const k = getKey(customer);
-  state.selectedCustomerKey = k;
-
-  const hist = state.reservations
-    .filter(r => getKey(r) === k)
-    .sort((a,b)=>String(b.startIso||'').localeCompare(String(a.startIso||'')));
-
-  // 流入元カウント
-  const srcCounts = {};
-  for (const h of hist) {
-    const label = (h.medium || '').trim() || '不明';
-    srcCounts[label] = (srcCounts[label] || 0) + 1;
-  }
-  renderSourceStats(srcCounts);
-
-  // 履歴テーブル
-  const tb = qs('#history tbody'); if (!tb) { console.warn('#history tbody not found'); return; }
-  tb.innerHTML='';
-  const now = Date.now();
-  for(const h of hist){
-    const canResched = h.startMs && h.startMs > now;
-    const tr=document.createElement('tr');
-    tr.dataset.resvId = h.resvId || '';
-
-    tr.innerHTML = `
-      <td data-label="日時">${fmt(h.startIso)}</td>
-      <td data-label="メニュー">${esc(h.menu || '')}</td>
-      <td data-label="項目">${esc(h.items||h.opts||'')}</td>
-      <td data-label="流入元">${esc(h.medium || '')}</td>
-      <td data-label="メモ">
-        <div class="memo-text">${esc(h.memo || '')}</div>
-        <button class="memo-edit" type="button">メモ編集</button>
-      </td>
-      <td data-label="操作">
-        ${canResched ? `
-          <button class="resched-btn" type="button">日時変更</button>
-          <span class="resched-editor" hidden>
-            <input type="datetime-local" class="resched-dt" />
-            <button class="do-resched" type="button">保存</button>
-            <button class="cancel-resched" type="button">×</button>
-          </span>
-        ` : `<span style="color:#888">-</span>`}
-      </td>
-    `;
-    tb.appendChild(tr);
-  }
-
-  // 行内イベント
-  tb.querySelectorAll('.memo-edit').forEach(btn=>{
-    btn.addEventListener('click', async (e)=>{
-      const tr = e.target.closest('tr');
-      const resvId = tr?.dataset?.resvId || '';
-      const cur = tr.querySelector('.memo-text')?.textContent || '';
-      const memo = prompt('この予約のメモ', cur);
-      if (memo == null) return;
-      try{
-        await postJSON({ action:'upsertResvMemo', resvId, memo });
-        tr.querySelector('.memo-text').textContent = memo;
-        const keepKey = state.selectedCustomerKey;
-        await loadData();
-        const again = state.customers.find(c => getKey(c) === keepKey);
-        if (again) openDrawer(again);
-        showToast('メモを保存しました', 'success');
-      }catch(err){ console.error(err); showToast('保存に失敗しました', 'error'); }
-    });
-  });
-  tb.querySelectorAll('.resched-btn').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      const tr = e.target.closest('tr');
-      tr.querySelector('.resched-editor')?.removeAttribute('hidden');
-      const dt = tr.querySelector('.resched-dt');
-      const whenText = tr.children[0].textContent.trim();
-      const d = new Date(whenText.replace(/\//g,'-'));
-      if (!isNaN(d)) dt.value = `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
-    });
-  });
-  tb.querySelectorAll('.cancel-resched').forEach(btn=>{
-    btn.addEventListener('click', e=>{
-      const tr = e.target.closest('tr');
-      tr.querySelector('.resched-editor')?.setAttribute('hidden','');
-    });
-  });
-  tb.querySelectorAll('.do-resched').forEach(btn=>{
-    btn.addEventListener('click', async e=>{
-      const tr = e.target.closest('tr');
-      const resvId = tr?.dataset?.resvId || '';
-      const dt = tr.querySelector('.resched-dt')?.value;
-      if (!dt) return showToast('日時を選択してください', 'warn');
-      try{
-        await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
-        showToast('日時を変更しました', 'success');
-        const keepKey = state.selectedCustomerKey;
-        await loadData();
-        const again = state.customers.find(c => getKey(c) === keepKey);
-        if (again) openDrawer(again);
-      }catch(err){
-        console.error(err);
-        showToast('変更に失敗しました（営業時間外・重複・過去予約等の可能性）','error');
-      }
-    });
-  });
-
-  // タイトル & クイックアクション
-  const titleName = customer.name || customer.email || customer.phone || '';
-  qs('#drawerTitle').textContent = `顧客プロファイル：${titleName}`;
-  qs('#quickActions').innerHTML = [
-    customer.phone ? `<a href="tel:${esc(customer.phone)}">📞 電話</a>` : '',
-    customer.email ? `<a href="mailto:${esc(customer.email)}">✉️ メール</a>` : '',
-    customer.address ? `<a href="https://maps.google.com/?q=${encodeURIComponent(customer.address)}" target="_blank">🗺️ 地図</a>` : ''
-  ].filter(Boolean).join('');
-
-  // フォーム値
-  fillProfileForm(customer);
-
-  // 初期は編集不可（編集ゲート）
-  setEditMode(false);
-
-  const drawer=qs('#drawer');
-  drawer.setAttribute('aria-hidden','false');
-  document.body.classList.add('drawer-open');
-  drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
-  qs('#drawer .close').onclick = closeDrawer;
-}
-
-function fillProfileForm(customer){
-  setVal('#editName', customer.name);
-  setVal('#editKana', customer.kana);
-  setVal('#editGender', customer.gender);
-  setVal('#editPhone', customer.phone);
-  setVal('#editEmail', customer.email);
-  setVal('#editAddress', customer.address);
-  setVal('#editBirthdate', (customer.birthdate||'').slice(0,10));
-  setVal('#editStaff', customer.staff);
-  setVal('#editTags', (customer.tags||[]).join(', '));
-  setVal('#editMemo', customer.memo);
-  setVal('#editAttention', customer.attention);
-  setChecked('#editOptEmail', toBool(customer.optInEmail));
-  setChecked('#editOptLine', toBool(customer.optInLine));
-  setVal('#editConsentDate', (customer.consentDate||'').slice(0,10));
-  setVal('#editReferredBy', customer.referredBy);
-  setVal('#editReferralCode', customer.referralCode);
-  setVal('#editTicketType', customer.ticketType);
-  setVal('#editTicketRemain', customer.ticketRemaining);
-  setVal('#editTicketExpiry', (customer.ticketExpiry||'').slice(0,10));
-  setVal('#editFirst', fmt(customer.firstReservation) || '');
-  setVal('#editLast', fmt(customer.lastReservation)  || '');
-  qs('#saveStatus').textContent = '';
-  state.editSnapshot = JSON.parse(JSON.stringify(customer || {}));
-}
-
-function setEditMode(on){
-  state.editMode = !!on;
-  const grid = document.querySelector('.note-editor .grid');
-  if (grid) grid.querySelectorAll('input, select, textarea').forEach(el => {
-    if (el.id === 'editFirst' || el.id === 'editLast') { el.readOnly = true; el.disabled = true; return; }
-    el.disabled = !on;
-  });
-  qs('#editToggle').hidden = !!on;
-  qs('#saveNote').hidden = !on;
-  qs('#cancelEdit').hidden = !on;
-}
-
-function setVal(sel, v){ const el=qs(sel); if(el) el.value = v ?? ''; }
-function setChecked(sel, v){ const el=qs(sel); if(el) el.checked = !!v; }
-function toBool(v){ return String(v).toLowerCase()==='true' || v===true || v==='1' || v===1; }
-
-function closeDrawer(){
-  qs('#drawer').setAttribute('aria-hidden','true');
-  document.body.classList.remove('drawer-open');
-}
-
-function renderSourceStats(counts){
-  const wrap = qs('#sourceStats'); if (!wrap) return;
-  const entries = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
-  if (entries.length === 0) { wrap.innerHTML = '<span class="srcchip">データなし</span>'; return; }
-  wrap.innerHTML = entries.map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`).join(' ');
-}
-
-// ===== 保存（POST） =====
-async function postJSON(body){
-  const res = await fetch(GAS_WEBAPP_URL, {
-    method:'POST',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ secret:SECURITY_SECRET, ...body })
-  });
-  const j = await res.json().catch(()=>null);
-  if (!res.ok || !j || j.ok===false) throw new Error(j?.error || `HTTP ${res.status}`);
-  return j.data || j.result || j;
-}
-
-async function saveNote(){
-  if (!state.editMode) return;
-  const key = state.selectedCustomerKey; if(!key) return;
-
-  const body = {
-    action:'upsertNote', key,
-    name: qs('#editName').value.trim(),
-    kana: qs('#editKana').value.trim(),
-    gender: qs('#editGender').value,
-    phone: qs('#editPhone').value.trim(),
-    email: qs('#editEmail').value.trim(),
-    address: qs('#editAddress').value.trim(),
-    birthdate: qs('#editBirthdate').value,
-    staff: qs('#editStaff').value.trim(),
-    tags: qs('#editTags').value.split(',').map(s=>s.trim()).filter(Boolean),
-    memo: qs('#editMemo').value,
-    attention: qs('#editAttention').value,
-    optInEmail: qs('#editOptEmail').checked ? 'TRUE' : 'FALSE',
-    optInLine: qs('#editOptLine').checked ? 'TRUE' : 'FALSE',
-    consentDate: qs('#editConsentDate').value,
-    referredBy: qs('#editReferredBy').value,
-    referralCode: qs('#editReferralCode').value,
-    ticketType: qs('#editTicketType').value,
-    ticketRemaining: qs('#editTicketRemain').value,
-    ticketExpiry: qs('#editTicketExpiry').value
-  };
-
-  qs('#saveNote').disabled = true; qs('#saveStatus').textContent = '保存中…';
-  try{
-    await postJSON(body);
-    qs('#saveStatus').textContent = '保存しました。';
-    showToast('顧客情報を保存しました', 'success');
-    const keepKey = state.selectedCustomerKey;
-    await loadData();
-    const again = state.customers.find(c => getKey(c) === keepKey);
-    if (again) openDrawer(again);
-    setEditMode(false);
-  }catch(e){
-    console.error(e); qs('#saveStatus').textContent = '保存に失敗しました。'; showToast('保存に失敗しました', 'error');
-  }finally{
-    qs('#saveNote').disabled = false;
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:        #f7f8fc;
+    --surface:   #ffffff;
+    --surface-2: #f4f6fb;
+    --border:    #e6e8f0;
+    --muted:     #6b7280;
+    --text:      #0f172a;
+    --text-weak: #475569;
+    color-scheme: light;
   }
 }
 
-// ===== Column Visibility (ヘッダー右クリック) =====
-function getColumnsMeta(){
-  const ths = qsa('#customers thead th');
-  return ths.map((th, i)=>({ index:i+1, label: th.textContent.trim() || `列${i+1}` }));
+@media (min-width: 1200px) {
+  :root { --drawer-w: 1024px; }
 }
-function applyColumnVisibility(){
-  const cols = settings.cols;
-  const meta = getColumnsMeta();
-  const table = qs('#customers');
-  if (!table) return;
-  for(let i=1;i<=meta.length;i++){ table.classList.remove(`hide-col-${i}`); }
-  if (!Array.isArray(cols) || cols.length===0) return;
-  meta.forEach((m,idx)=>{
-    const visible = cols[idx] !== false;
-    if (!visible) table.classList.add(`hide-col-${m.index}`);
-  });
+
+body {
+  margin: 0;
+  font-family: "Inter","Noto Sans JP", system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN","Noto Sans CJK JP","Yu Gothic","Meiryo",sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(108,92,231,.18), transparent 60%),
+    radial-gradient(1000px 500px at -10% -20%, rgba(34,211,238,.14), transparent 52%),
+    var(--bg);
+  color: var(--text);
+  line-height: 1.62;
+  accent-color: var(--brand);
 }
-function openColumnMenuAt(x, y){
-  let menu = document.getElementById('colmenu');
-  if (!menu) {
-    menu = document.createElement('div');
-    menu.id = 'colmenu';
-    menu.setAttribute('role','dialog');
-    menu.setAttribute('aria-label','列の表示/非表示');
-    document.body.appendChild(menu);
+
+:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* ---------- Header ---------- */
+header {
+  position: sticky; top: 0; z-index: 40;
+  backdrop-filter: saturate(120%) blur(14px);
+  background: color-mix(in hsl, var(--surface) 75%, transparent);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 8px 22px rgba(0,0,0,.18);
+}
+
+header > h1 {
+  margin: 0;
+  padding: 20px 18px 8px;
+  font-weight: 800;
+  font-size: clamp(18px, 2.2vw, 24px);
+  letter-spacing: .02em;
+}
+
+/* ==== フィルター群：各項目にタイトル（label.field） ==== */
+header .tools {
+  display: grid;
+  gap: 10px 12px;
+  padding: 12px 16px 18px;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: start;
+}
+header .tools.row2 { padding-top: 0; padding-bottom: 18px; }
+
+.field { display: grid; gap: 6px; }
+.field .title {
+  color: var(--text-weak);
+  font-size: 12px; font-weight: 800; letter-spacing: .06em;
+}
+
+/* 配置（PC） */
+.field-q     { grid-column: span 4; }
+.field-from  { grid-column: span 1; }
+.field-tilde { grid-column: span 1; display:flex; align-items:flex-end; }
+.field-to    { grid-column: span 1; }
+.field-menu  { grid-column: span 2; }
+.field-tag   { grid-column: span 2; }
+.field-quick { grid-column: span 2; }
+.field-sort  { grid-column: span 2; }
+.field-reload{ grid-column: span 1; }
+.field-csv   { grid-column: span 1; }
+
+/* タブレット */
+@media (max-width: 1100px) {
+  header .tools { grid-template-columns: repeat(6, 1fr); }
+  .field-q     { grid-column: 1 / -1; }
+  .field-from, .field-to, .field-tilde { grid-column: span 2; }
+  .field-menu, .field-tag, .field-quick, .field-sort, .field-reload, .field-csv { grid-column: span 3; }
+}
+
+/* スマホ */
+@media (max-width: 680px) {
+  html { font-size: 16px; }
+  header .tools { grid-template-columns: repeat(2, 1fr); grid-auto-flow: dense; }
+  .field-q, .field-menu, .field-tag, .field-quick, .field-sort, .field-reload, .field-csv { grid-column: 1 / -1; }
+  .field-from, .field-to { grid-column: span 1; }
+  .field-tilde { grid-column: span 1; justify-content:center; color: var(--muted); align-items: end; }
+  button { height: 44px; }
+}
+
+/* 極小端末 */
+@media (max-width: 480px) {
+  header > h1 { padding: 14px 12px 6px; font-size: 18px; }
+  header .tools { grid-template-columns: 1fr; }
+  .field-from, .field-to { grid-column: 1 / -1; }
+  .view-toggle { grid-column: 1 / -1; width: 100%; justify-content: space-between; }
+  .view-toggle label { flex: 1 1 33%; text-align: center; }
+}
+
+/* ---------- Controls ---------- */
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="tel"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  transition: border-color .2s, background .2s, box-shadow .2s, transform .04s;
+}
+input::placeholder, textarea::placeholder { color: var(--muted); }
+input:hover, select:hover, textarea:hover { border-color: color-mix(in hsl, var(--brand) 24%, var(--border)); }
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 4px color-mix(in hsl, var(--brand) 22%, transparent);
+}
+select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%),
+    linear-gradient(to right, transparent, transparent);
+  background-position:
+    calc(100% - 18px) calc(1em + 3px),
+    calc(100% - 13px) calc(1em + 3px),
+    calc(100% - 2.5em) 0.5em;
+  background-size: 6px 6px, 6px 6px, 1px 2.5em;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+
+/* disabled */
+:disabled { opacity: .75; cursor: not-allowed; background: color-mix(in hsl, var(--surface) 90%, white 10%); }
+
+/* Toggles */
+.view-toggle {
+  display: inline-flex; gap: 8px; padding: 6px;
+  border-radius: 999px; background: var(--surface-2);
+  border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+  grid-column: span 4;
+}
+.view-toggle label { position: relative; padding: 10px 12px; border-radius: 999px; cursor: pointer; user-select: none; color: var(--text-weak); font-weight: 700; }
+.view-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.view-toggle label:has(input:checked) { background: var(--surface); color: var(--text); box-shadow: 0 10px 20px rgba(0,0,0,.15), inset 0 0 0 1px rgba(255,255,255,.02); }
+
+/* Buttons */
+button {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: transform .05s, box-shadow .2s, background .2s, border-color .2s;
+}
+button:hover { border-color: color-mix(in hsl, var(--brand) 24%, var(--border)); box-shadow: 0 8px 18px rgba(0,0,0,.16); }
+button:active { transform: translateY(1px); }
+#reload { background: var(--surface-2); }
+#exportCsv { background: var(--brand); border-color: var(--brand-600); color: #fff; }
+#exportCsv:hover { background: var(--brand-600); }
+
+/* ---------- Main ---------- */
+main { max-width: 1400px; margin: 26px auto 84px; padding: 0 16px; }
+@media (max-width: 680px) { main { margin: 16px auto 60px; padding: 0 12px; } }
+
+.section-title {
+  margin: 12px 12px 8px; font-size: 13px; color: var(--text-weak);
+  font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+}
+
+/* Table (Desktop) */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface) 0%, color-mix(in hsl, var(--surface) 70%, transparent) 100%);
+  box-shadow: var(--shadow-1);
+  overflow: clip;
+}
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  color: var(--text-weak);
+  text-align: left;
+  padding: 12px 14px;
+  font-weight: 800;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tbody tr { transition: background .15s ease; }
+tbody tr:hover { background: color-mix(in hsl, var(--brand) 8%, transparent); cursor: pointer; }
+
+/* フォーカス行 */
+tbody tr.row-focus { background: color-mix(in hsl, var(--brand) 14%, transparent); box-shadow: inset 0 0 0 2px color-mix(in hsl, var(--brand) 40%, transparent); }
+
+/* Contacts buttons */
+.cell-contacts a {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  text-decoration: none; color: var(--text);
+  background: var(--surface-2);
+  margin-right: 6px; font-size: 12.5px;
+}
+.cell-contacts a:hover { border-color: color-mix(in hsl, var(--brand) 30%, var(--border)); background: color-mix(in hsl, var(--surface-2) 80%, var(--brand) 20%); }
+
+/* Tags / Badges */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 999px;
+  border: 1px dashed var(--border); background: var(--surface-2);
+  color: var(--text-weak); font-size: 12px;
+}
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; letter-spacing: .02em; border: 1px solid transparent; }
+.badge.new { background: color-mix(in hsl, var(--brand) 14%, transparent); color: var(--text); border-color: color-mix(in hsl, var(--brand) 30%, transparent); }
+.badge.loyal { background: color-mix(in hsl, var(--ok) 18%, transparent); color: var(--text); border-color: color-mix(in hsl, var(--ok) 35%, transparent); }
+.badge.idle { background: color-mix(in hsl, var(--warn) 18%, transparent); color: var(--text); border-color: color-mix(in hsl, var(--warn) 35%, transparent); }
+.badge.past { background: color-mix(in hsl, var(--muted) 24%, transparent); color: var(--text); }
+.badge.future { background: color-mix(in hsl, var(--accent) 18%, transparent); color: var(--text); }
+
+/* ---------- Drawer ---------- */
+#drawer[aria-hidden="true"] { position: fixed; inset: 0; pointer-events: none; opacity: 0; }
+#drawer[aria-hidden="false"] {
+  position: fixed; inset: 0; display: grid;
+  grid-template-columns: 1fr min(var(--drawer-w), 100vw);
+  place-items: stretch;
+  background: color-mix(in hsl, #000 45%, transparent);
+  backdrop-filter: blur(6px);
+  transition: opacity .2s ease-in-out; opacity: 1; z-index: 60;
+}
+#drawer[aria-hidden="false"]::before { content:""; grid-column: 1; }
+#drawer[aria-hidden="false"] .drawer-inner { grid-column: 2; width: min(var(--drawer-w), 100vw); margin-left: auto; }
+
+#drawer .drawer-inner {
+  height: 100vh; overflow: auto; background: var(--surface);
+  border-left: 1px solid var(--border); box-shadow: var(--shadow-2);
+  padding: 20px 18px 40px; animation: slideIn .18s ease-out;
+  overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(40px, env(safe-area-inset-bottom, 0px) + 16px);
+}
+@supports (height: 100dvh) { #drawer .drawer-inner { height: 100dvh; } }
+@supports (height: 100svh) { #drawer .drawer-inner { height: 100svh; } }
+@supports (height: 100lvh) { #drawer .drawer-inner { height: 100lvh; } }
+@keyframes slideIn { from { transform: translateX(20px); opacity: .6; } to { transform: translateX(0); opacity: 1; } }
+
+#drawer .close { position: sticky; top: -6px; margin-left: auto; z-index: 2; width: 38px; height: 38px; border-radius: 999px; display: inline-grid; place-items: center; background: var(--surface-2); border: 1px solid var(--border); }
+#drawer h2 { margin: 8px 0 16px; font-size: 18px; font-weight: 800; letter-spacing: .02em; }
+#drawer h3 { margin: 18px 0 10px; font-size: 13px; color: var(--text-weak); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+/* Drawer columns */
+.drawer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+.profile-col, .history-col { min-width: 0; }
+@media (min-width: 1200px) {
+  .drawer-grid {
+    grid-template-columns: 460px 1fr;
+    gap: 20px;
   }
-  const meta = getColumnsMeta();
-  const cols = settings.cols;
-  menu.innerHTML = '';
-  meta.forEach((m, idx)=>{
-    const row = document.createElement('label');
-    row.className = 'row';
-    const ck = document.createElement('input');
-    ck.type='checkbox';
-    const visible = cols[idx] !== false;
-    ck.checked = visible;
-    ck.addEventListener('change', ()=>{
-      const next = (Array.isArray(settings.cols) && settings.cols.slice(0, meta.length)) || new Array(meta.length).fill(true);
-      next[idx] = ck.checked;
-      settings.cols = next;
-    });
-    const span = document.createElement('span'); span.textContent = m.label;
-    row.appendChild(ck); row.appendChild(span);
-    menu.appendChild(row);
-  });
-  menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
-  menu.style.top  = `${Math.min(y, window.innerHeight - 260)}px`;
-  menu.hidden = false;
-
-  const onDismiss = (ev)=>{
-    if (ev.type==='keydown' && ev.key!=='Escape') return;
-    menu.hidden = true;
-    document.removeEventListener('mousedown', onDocClick);
-    document.removeEventListener('keydown', onDismiss);
-  };
-  const onDocClick = (ev)=>{ if (!menu.contains(ev.target)) onDismiss({type:'keydown', key:'Escape'}); };
-  document.addEventListener('mousedown', onDocClick);
-  document.addEventListener('keydown', onDismiss);
+  .history-col { border-left: 1px solid var(--border); padding-left: 16px; }
 }
 
-// ===== Command Palette =====
-function ensureKbar(){
-  if (document.getElementById('kbar')) return;
-  const wrap = document.createElement('div');
-  wrap.id = 'kbar'; wrap.hidden = true;
-  wrap.innerHTML = `
-    <div class="kbar-card" role="dialog" aria-modal="true" aria-labelledby="kbarTitle">
-      <div id="kbarTitle" style="position:absolute;left:-9999px;">コマンドパレット</div>
-      <input class="kbar-input" type="search" placeholder="コマンドを検索（例：CSV、テーマ、列表示、モード、件数…）" />
-      <div class="kbar-list" role="listbox"></div>
-    </div>
-  `;
-  document.body.appendChild(wrap);
-
-  const input = wrap.querySelector('.kbar-input');
-  const list  = wrap.querySelector('.kbar-list');
-
-  const commands = () => ([
-    { title:'CSVをエクスポート', run: exportCsv },
-    { title:'テーマ：ライトにする', run: ()=>{ settings.theme='light'; } },
-    { title:'テーマ：ダークにする',  run: ()=>{ settings.theme='dark'; } },
-    { title:'テーマ：システムに従う', run: ()=>{ settings.theme='system'; } },
-    { title:'表示モード：自動', run: ()=>{ settings.view='auto'; selectViewRadio('auto'); } },
-    { title:'表示モード：モバイル', run: ()=>{ settings.view='mobile'; selectViewRadio('mobile'); } },
-    { title:'表示モード：PC', run: ()=>{ settings.view='desktop'; selectViewRadio('desktop'); } },
-    { title:'表示件数：20', run: ()=>{ settings.per=20; } },
-    { title:'表示件数：50', run: ()=>{ settings.per=50; } },
-    { title:'表示件数：100', run: ()=>{ settings.per=100; } },
-    { title:'列の表示/非表示…', run: ()=>{ const r = qs('#customers thead'); const rect = r.getBoundingClientRect(); openColumnMenuAt(rect.left + 12, rect.bottom + 6); } },
-    { title:'クイック：新規のみ', run: ()=>{ qs('#quickSeg').value='new'; applyFilter(); } },
-    { title:'クイック：常連のみ', run: ()=>{ qs('#quickSeg').value='loyal'; applyFilter(); } },
-    { title:'クイック：休眠のみ', run: ()=>{ qs('#quickSeg').value='idle'; applyFilter(); } },
-    { title:'クイック：解除',     run: ()=>{ qs('#quickSeg').value=''; applyFilter(); } }
-  ]);
-
-  function open(){
-    wrap.hidden = false;
-    input.value = '';
-    renderList('');
-    setTimeout(()=>input.focus(), 0);
-    document.addEventListener('keydown', onKey);
-    document.addEventListener('mousedown', onClickOutside);
-  }
-  function close(){
-    wrap.hidden = true;
-    document.removeEventListener('keydown', onKey);
-    document.removeEventListener('mousedown', onClickOutside);
-  }
-  function onClickOutside(e){ if (e.target.closest('#kbar .kbar-card')) return; close(); }
-
-  function renderList(query){
-    const q = query.trim().toLowerCase();
-    const items = commands().filter(c => !q || c.title.toLowerCase().includes(q));
-    list.innerHTML = '';
-    items.forEach((c,i)=>{
-      const div = document.createElement('div');
-      div.className = 'kbar-item';
-      div.setAttribute('role','option');
-      div.setAttribute('aria-selected', i===0 ? 'true' : 'false');
-      div.innerHTML = `<span>${esc(c.title)}</span>`;
-      div.addEventListener('mouseenter', ()=> selectIndex(i));
-      div.addEventListener('click', ()=>{ c.run(); close(); });
-      list.appendChild(div);
-    });
-    kbarIndex = 0;
-  }
-
-  let kbarIndex = 0;
-  function selectIndex(i){
-    const items = list.querySelectorAll('.kbar-item');
-    if (items.length===0) return;
-    kbarIndex = (i + items.length) % items.length;
-    items.forEach((el,idx)=> el.setAttribute('aria-selected', idx===kbarIndex ? 'true' : 'false'));
-    items[kbarIndex]?.scrollIntoView({block:'nearest'});
-  }
-
-  function onKey(e){
-    if (e.key==='Escape'){ close(); return; }
-    if (e.key==='ArrowDown'){ e.preventDefault(); selectIndex(kbarIndex+1); return; }
-    if (e.key==='ArrowUp'){ e.preventDefault(); selectIndex(kbarIndex-1); return; }
-    if (e.key==='Enter'){
-      const items = list.querySelectorAll('.kbar-item');
-      const sel = items[kbarIndex];
-      if (sel){ sel.click(); }
-      return;
-    }
-  }
-
-  input.addEventListener('input', ()=> renderList(input.value));
-  wrap.openKbar = open;
-  wrap.closeKbar = close;
-}
-function openKbar(){ ensureKbar(); document.getElementById('kbar').openKbar(); }
-
-// ===== Keyboard Navigation (table rows) =====
-function getRenderedRowEls(){
-  return qsa('#customers tbody tr');
-}
-function updateRowFocus(){
-  const rows = getRenderedRowEls();
-  rows.forEach(r=>r.classList.remove('row-focus'));
-  if (state.focusIndex<0 || state.focusIndex>=rows.length) return;
-  rows[state.focusIndex].classList.add('row-focus');
-}
-function moveFocus(delta){
-  const rows = getRenderedRowEls();
-  if (rows.length===0) return;
-  if (state.focusIndex===-1) state.focusIndex = 0;
-  else state.focusIndex = Math.min(rows.length-1, Math.max(0, state.focusIndex + delta));
-  updateRowFocus();
-}
-function openFocused(){
-  const idx = state.focusIndex;
-  if (idx<0) return;
-  const abs = (state.page-1)*state.perPage + idx;
-  const r = state.filtered[abs];
-  if (r) openDrawer(r);
-}
-function selectViewRadio(v){
-  const r = document.querySelector(`.view-toggle input[value="${v}"]`);
-  if (r) r.checked = true;
+#quickActions a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; margin-right: 6px; margin-bottom: 6px;
+  border-radius: 10px; text-decoration: none;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 12.5px;
 }
 
-// ===== Events =====
-function attach(){
-  // 入力 → デバウンス
-  ['#q','#from','#to','#menuFilter','#tagFilter','#quickSeg','#followOnly'].forEach(sel=>{
-    const el = qs(sel);
-    el.addEventListener('input', applyFilterDebounced);
-    el.addEventListener('change', applyFilter);
-  });
-  // ソート
-  qs('#sort').addEventListener('change', ()=>{
-    applySort();
-  });
+.srcstats { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.srcchip { display: inline-flex; gap: 6px; align-items: center; padding: 6px 10px; border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px; color: var(--text-weak); font-weight: 700; font-size: 12px; }
+.srcchip .count { min-width: 18px; text-align: center; padding: 2px 6px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 
-  // 再読込
-  qs('#reload').addEventListener('click', async ()=>{
-    try { setGlobalLoading(true, '更新中…'); await loadData(); showToast('最新データを取得しました', 'success'); }
-    finally { setGlobalLoading(false); }
-  });
-
-  // CSV
-  qs('#exportCsv').addEventListener('click', exportCsv);
-
-  // 編集ゲート：編集/保存/キャンセル
-  qs('#editToggle').addEventListener('click', ()=> setEditMode(true));
-  qs('#cancelEdit').addEventListener('click', ()=>{
-    if (state.editSnapshot) fillProfileForm(state.editSnapshot);
-    setEditMode(false);
-    qs('#saveStatus').textContent = '';
-  });
-  qs('#saveNote').addEventListener('click', saveNote);
-
-  // ビュー切替（永続化）
-  document.querySelectorAll('input[name="view"]').forEach(r=>{
-    r.addEventListener('change', ()=>{
-      const v = r.value;
-      document.body.classList.remove('view-auto','view-mobile','view-desktop');
-      document.body.classList.add('view-'+v);
-      settings.view = v;
-    });
-  });
-  // 初期ビュー復元
-  document.body.classList.remove('view-auto','view-mobile','view-desktop');
-  document.body.classList.add('view-'+settings.view);
-  selectViewRadio(settings.view);
-
-  // テーマ適用（初回）
-  if (settings.theme !== 'system') applyTheme();
-
-  // コマンドパレット
-  ensureKbar();
-
-  // テーブルヘッダーの右クリックで列メニュー
-  const thead = qs('#customers thead');
-  thead.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openColumnMenuAt(e.clientX, e.clientY); });
-
-  // キーボードショートカット
-  document.addEventListener('keydown', (e)=>{
-    const tag = (e.target.tagName || '').toLowerCase();
-    const typing = tag==='input' || tag==='textarea' || e.target.isContentEditable;
-
-    if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      e.preventDefault();
-      qs('#q').focus();
-      return;
-    }
-    if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault(); openKbar(); return;
-    }
-    if (e.key.toLowerCase() === 't' && e.altKey) {
-      e.preventDefault(); toggleThemeQuick(); return;
-    }
-    if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-      e.preventDefault();
-      moveFocus(e.key==='ArrowDown' ? 1 : -1);
-      return;
-    }
-    if (!typing && e.key === 'Enter') {
-      openFocused();
-      return;
-    }
-    if (e.key === 'Escape') {
-      const kbar = document.getElementById('kbar');
-      if (kbar && !kbar.hidden){ kbar.closeKbar(); return; }
-      const drawerOpen = qs('#drawer')?.getAttribute('aria-hidden')==='false';
-      if (drawerOpen){ closeDrawer(); return; }
-    }
-  });
+/* Note editor */
+.note-editor .grid {
+  display: grid; grid-template-columns: 140px 1fr; gap: 10px 12px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px;
+}
+.note-editor label { color: var(--muted); font-weight: 700; }
+.note-editor .checks { display: inline-flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.note-editor .actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+.note-editor .actions button { min-width: 110px; }
+@media (max-width: 480px) {
+  .note-editor .actions button { flex: 1 1 calc(50% - 6px); }
+}
+.save-status { color: var(--muted); font-weight: 700; }
+@media (max-width: 900px) { .note-editor .grid { grid-template-columns: 120px 1fr; } }
+@media (max-width: 680px) {
+  .note-editor .grid { grid-template-columns: 1fr; }
+  .note-editor label { margin-top: 4px; }
+  input, select, textarea { font-size: 16px; }
 }
 
-// ===== Init =====
-(async function init(){
-  try {
-    ensureToastHost();
-    setGlobalLoading(true, 'データを読み込んでいます…');
-    attach();
-    wireLoadingRetry();
-    await (async function maybeHandleTokenView(){
-      const p = new URLSearchParams(location.search); const token=p.get('token'); if(!token) return;
-      qs('#tokenView').style.display='';
-      try{
-        const res=await fetch(`${GAS_WEBAPP_URL}?op=view&format=json&token=${encodeURIComponent(token)}`);
-        qs('#tokenResult').textContent = JSON.stringify(await res.json(), null, 2);
-      }catch(e){ qs('#tokenResult').textContent='読み込みに失敗しました。'; }
-    })();
-    await loadData();
-    setGlobalLoading(false);
-  } catch(e){
-    console.error(e);
-    showLoadError('読み込みに失敗しました。［再読み込み］を押してください。');
-  }
-})();
+/* ===== 来店履歴：新レスポンシブ（モバイル＝カード／PC＝表） ===== */
+
+/* 共通 */
+.hchip {
+  display:inline-flex; align-items:center; gap:6px;
+  padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800;
+  border:1px solid var(--border); background: var(--surface-2); color: var(--text-weak);
+}
+.hchip.future { background: color-mix(in hsl, var(--accent) 18%, transparent); color: var(--text); }
+.hchip.past   { background: color-mix(in hsl, var(--muted) 22%, transparent); color: var(--text); }
+.hchip.src    { background: var(--surface-2); }
+
+/* PC = 表（従来） */
+#historyMount table { width: 100%; border-collapse: separate; border-spacing: 0; }
+#historyMount thead th { position: sticky; top: 0; background: linear-gradient(180deg, var(--surface-2), var(--surface)); color: var(--text-weak); padding: 12px 14px; border-bottom: 1px solid var(--border); }
+#historyMount tbody td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+#historyMount tbody tr:hover { background: color-mix(in hsl, var(--brand) 6%, transparent); }
+
+/* モバイル = カード */
+.history-cards { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.hcard {
+  border: 1px solid var(--border); border-radius: 14px;
+  background: linear-gradient(180deg, var(--surface), color-mix(in hsl, var(--surface) 70%, transparent));
+  box-shadow: var(--shadow-1); padding: 12px;
+}
+.hcard .top {
+  display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.hcard .when { font-weight: 800; }
+.hcard .meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.hcard .body { display: grid; gap: 6px; margin-bottom: 8px; }
+.hcard .label { color: var(--text-weak); font-size: 12px; font-weight: 800; }
+.hcard .memo { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.hcard .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hcard .resched-editor { display: inline-flex; gap: 6px; align-items: center; }
+.hcard .resched-editor input[type="datetime-local"] { height: 32px; }
+
+/* Buttons inside history */
+.memo-edit, .resched-btn, .do-resched, .cancel-resched {
+  height: 32px; padding: 0 10px; border-radius: 8px; font-weight: 800;
+}
+
+/* スマホ専用微調整 */
+@media (max-width: 680px) {
+  .history-cards { grid-template-columns: 1fr; }
+}
+
+/* Pager */
+#pager { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px; background: var(--surface-2); border-top: 1px solid var(--border); }
+#pager button { height: 36px; min-width: 38px; border-radius: 10px; }
+
+/* Cards (Mobile) */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
+.card {
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), color-mix(in hsl, var(--surface) 70%, transparent));
+  box-shadow: var(--shadow-1); padding: 14px;
+  transition: transform .08s, box-shadow .2s, border-color .2s, background .2s;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: color-mix(in hsl, var(--brand) 26%, var(--border)); }
+.card .name { font-size: 16px; font-weight: 800; }
+.card .meta { color: var(--text-weak); font-size: 12.5px; margin: 4px 0 8px; }
+@media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+
+/* View switching */
+.view-auto #cardsSection { display: none; }
+.view-auto #customersSection { display: block; }
+@media (max-width: 900px) { .view-auto #cardsSection { display: grid; } .view-auto #customersSection { display: none; } }
+.view-mobile #cardsSection { display: grid; }
+.view-mobile #customersSection { display: none; }
+.view-desktop #cardsSection { display: none; }
+.view-desktop #customersSection { display: block; }
+
+/* Links (action icons) */
+.cell-actions a {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; margin-right: 4px; text-decoration: none;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2);
+  transition: background .2s, border-color .2s, transform .06s;
+}
+.cell-actions a:hover { border-color: color-mix(in hsl, var(--brand) 30%, var(--border)); background: color-mix(in hsl, var(--surface-2) 75%, var(--brand) 25%); transform: translateY(-1px); }
+@media (max-width: 680px) { .cell-actions a { width: 40px; height: 40px; } }
+
+/* Helpers */
+.tilde { color: var(--muted); }
+[aria-live="polite"] { min-height: 1.2em; }
+
+/* Drawer open時のスクロールロック */
+body.drawer-open { overflow: hidden; }
+body:has(#drawer[aria-hidden="false"]) { overflow: hidden; }
+
+/* ===== Loading Overlay ===== */
+#loading[aria-hidden="false"] {
+  position: fixed; inset: 0; z-index: 100;
+  display: grid; place-items: center;
+  background: color-mix(in hsl, #000 55%, transparent);
+  backdrop-filter: blur(6px) saturate(120%);
+}
+#loading[aria-hidden="true"] { position: fixed; inset: 0; opacity: 0; pointer-events: none; }
+.loading-card { width: min(440px, 92vw); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-2); padding: 26px 22px; text-align: center; }
+.spinner { width: 52px; height: 52px; margin: 4px auto 10px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--brand); animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { margin: 6px 0 10px; font-weight: 800; letter-spacing: .02em; }
+#loading .retry { height: 44px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--brand); background: var(--brand); color: #fff; font-weight: 800; }
+#loading .retry:hover { background: var(--brand-600); }
+
+/* Print */
+@media print {
+  header, #pager, #cardsSection, #drawer, #loading { display: none !important; }
+  body { background: #fff; color: #000; }
+  .table-wrap, thead th, tbody td { border-color: #ccc !important; background: #fff !important; color: #000 !important; }
+}
+
+/* ===== Other helpers ===== */
+mark.hl { background: color-mix(in hsl, var(--accent) 42%, transparent); color: var(--text); padding: 0 .15em; border-radius: 3px; }
+td.empty, .empty-card { text-align: center; color: var(--muted); padding: 24px 10px; font-weight: 700; }
+
+/* Toasts */
+#toastwrap { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 9999; }
+.toast { border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow-2); font-weight: 700; letter-spacing: .02em; }
+.toast.success { border-color: color-mix(in hsl, var(--ok) 40%, var(--border)); }
+.toast.warn    { border-color: color-mix(in hsl, var(--warn) 40%, var(--border)); }
+.toast.error   { border-color: color-mix(in hsl, var(--danger) 40%, var(--border)); }
