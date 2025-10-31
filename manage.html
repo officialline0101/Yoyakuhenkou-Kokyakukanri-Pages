@@ -54,22 +54,13 @@
       <button id="exportCsv">CSV</button>
     </div>
 
+    <!-- 2行目：表示切替のみ残す -->
     <div class="tools row2">
       <div class="view-toggle" role="group" aria-label="表示切替">
         <label><input type="radio" name="view" value="auto" checked> 自動</label>
         <label><input type="radio" name="view" value="mobile"> モバイル</label>
         <label><input type="radio" name="view" value="desktop"> PC</label>
       </div>
-
-      <div class="segmented">
-        <input id="segmentName" type="text" placeholder="条件に名前を付けて保存" />
-        <button id="saveSegment">保存</button>
-        <select id="savedSegments"><option value="">保存済み条件…</option></select>
-        <button id="applySegment">適用</button>
-        <button id="deleteSegment">削除</button>
-      </div>
-
-      <button id="toggleDuplicates">重複候補</button>
     </div>
   </header>
 
@@ -181,24 +172,8 @@
       </div>
     </section>
 
-    <!-- 重複候補パネル -->
-    <section id="dupesPanel" class="dupes" aria-hidden="true">
-      <div class="dupes-inner">
-        <div class="head">
-          <h2>重複候補</h2>
-          <button class="close" aria-label="閉じる">×</button>
-        </div>
-        <div class="body">
-          <table>
-            <thead><tr><th>顧客A</th><th>顧客B</th><th>一致理由</th></tr></thead>
-            <tbody id="dupesTbody"></tbody>
-          </table>
-          <p class="help">※いまは閲覧のみ（マージは後日）。</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- 予約メールの token 表示（任意） -->
+    <!-- ※重複候補パネルは削除済み -->
+    <!-- ※予約メール token 表示（任意） -->
     <section id="tokenView" style="display:none;">
       <h2>予約リンクからの表示</h2>
       <pre id="tokenResult"></pre>
