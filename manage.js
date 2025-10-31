@@ -800,4 +800,308 @@ function getColumnsMeta(){
   return ths.map((th, i)=>({ index:i+1, label: th.textContent.trim() || `列${i+1}` }));
 }
 function applyColumnVisibility(){
-  const cols
+  const cols = settings.cols;
+  const meta = getColumnsMeta();
+  const table = qs('#customers');
+  if (!table) return;
+  // まず既存 hide-col-* を外す
+  for(let i=1;i<=meta.length;i++){ table.classList.remove(`hide-col-${i}`); }
+  // 設定が空なら全部表示で終了
+  if (!Array.isArray(cols) || cols.length===0) return;
+  // false の列に hide クラスを当てる
+  meta.forEach((m,idx)=>{
+    const visible = cols[idx] !== false; // デフォルトtrue
+    if (!visible) table.classList.add(`hide-col-${m.index}`);
+  });
+}
+function openColumnMenuAt(x, y){
+  let menu = document.getElementById('colmenu');
+  if (!menu) {
+    menu = document.createElement('div');
+    menu.id = 'colmenu';
+    menu.setAttribute('role','dialog');
+    menu.setAttribute('aria-label','列の表示/非表示');
+    document.body.appendChild(menu);
+  }
+  const meta = getColumnsMeta();
+  const cols = settings.cols;
+  menu.innerHTML = '';
+  meta.forEach((m, idx)=>{
+    const row = document.createElement('label');
+    row.className = 'row';
+    const ck = document.createElement('input');
+    ck.type='checkbox';
+    const visible = cols[idx] !== false; // 未定義はtrue
+    ck.checked = visible;
+    ck.addEventListener('change', ()=>{
+      const next = (Array.isArray(settings.cols) && settings.cols.slice(0, meta.length)) || new Array(meta.length).fill(true);
+      next[idx] = ck.checked;
+      settings.cols = next;
+    });
+    const span = document.createElement('span'); span.textContent = m.label;
+    row.appendChild(ck); row.appendChild(span);
+    menu.appendChild(row);
+  });
+  menu.style.left = `${Math.min(x, window.innerWidth - 240)}px`;
+  menu.style.top  = `${Math.min(y, window.innerHeight - 260)}px`;
+  menu.hidden = false;
+
+  const onDismiss = (ev)=>{
+    if (ev.type==='keydown' && ev.key!=='Escape') return;
+    menu.hidden = true;
+    document.removeEventListener('mousedown', onDocClick);
+    document.removeEventListener('keydown', onDismiss);
+  };
+  const onDocClick = (ev)=>{ if (!menu.contains(ev.target)) onDismiss({type:'keydown', key:'Escape'}); };
+  document.addEventListener('mousedown', onDocClick);
+  document.addEventListener('keydown', onDismiss);
+}
+
+// ===== Command Palette =====
+function ensureKbar(){
+  if (document.getElementById('kbar')) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'kbar'; wrap.hidden = true;
+  wrap.innerHTML = `
+    <div class="kbar-card" role="dialog" aria-modal="true" aria-labelledby="kbarTitle">
+      <div id="kbarTitle" style="position:absolute;left:-9999px;">コマンドパレット</div>
+      <input class="kbar-input" type="search" placeholder="コマンドを検索（例：CSV、テーマ、列表示、モード、件数…）" />
+      <div class="kbar-list" role="listbox"></div>
+    </div>
+  `;
+  document.body.appendChild(wrap);
+
+  const input = wrap.querySelector('.kbar-input');
+  const list  = wrap.querySelector('.kbar-list');
+
+  const commands = () => ([
+    { title:'CSVをエクスポート', run: exportCsv },
+    { title:'テーマ：ライトにする', run: ()=>{ settings.theme='light'; } },
+    { title:'テーマ：ダークにする',  run: ()=>{ settings.theme='dark'; } },
+    { title:'テーマ：システムに従う', run: ()=>{ settings.theme='system'; } },
+    { title:'表示モード：自動', run: ()=>{ settings.view='auto'; selectViewRadio('auto'); } },
+    { title:'表示モード：モバイル', run: ()=>{ settings.view='mobile'; selectViewRadio('mobile'); } },
+    { title:'表示モード：PC', run: ()=>{ settings.view='desktop'; selectViewRadio('desktop'); } },
+    { title:'表示件数：20', run: ()=>{ settings.per=20; } },
+    { title:'表示件数：50', run: ()=>{ settings.per=50; } },
+    { title:'表示件数：100', run: ()=>{ settings.per=100; } },
+    { title:'列の表示/非表示…', run: ()=>{ const r = qs('#customers thead'); const rect = r.getBoundingClientRect(); openColumnMenuAt(rect.left + 12, rect.bottom + 6); } },
+    { title:'クイック：新規のみ', run: ()=>{ qs('#quickSeg').value='new'; applyFilter(); } },
+    { title:'クイック：常連のみ', run: ()=>{ qs('#quickSeg').value='loyal'; applyFilter(); } },
+    { title:'クイック：休眠のみ', run: ()=>{ qs('#quickSeg').value='idle'; applyFilter(); } },
+    { title:'クイック：解除',     run: ()=>{ qs('#quickSeg').value=''; applyFilter(); } },
+    { title:'重複候補を表示', run: ()=> showDupes(true) },
+    { title:'重複候補を閉じる', run: ()=> showDupes(false) },
+    { title:'検索にフォーカス', run: ()=>{ qs('#q').focus(); } },
+  ]);
+
+  function open(){
+    wrap.hidden = false;
+    input.value = '';
+    renderList('');
+    setTimeout(()=>input.focus(), 0);
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClickOutside);
+  }
+  function close(){
+    wrap.hidden = true;
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onClickOutside);
+  }
+  function onClickOutside(e){ if (e.target.closest('#kbar .kbar-card')) return; close(); }
+
+  function renderList(query){
+    const q = query.trim().toLowerCase();
+    const items = commands().filter(c => !q || c.title.toLowerCase().includes(q));
+    list.innerHTML = '';
+    items.forEach((c,i)=>{
+      const div = document.createElement('div');
+      div.className = 'kbar-item';
+      div.setAttribute('role','option');
+      div.setAttribute('aria-selected', i===0 ? 'true' : 'false');
+      div.innerHTML = `<span>${esc(c.title)}</span>`;
+      div.addEventListener('mouseenter', ()=> selectIndex(i));
+      div.addEventListener('click', ()=>{ c.run(); close(); });
+      list.appendChild(div);
+    });
+    kbarIndex = 0;
+  }
+
+  let kbarIndex = 0;
+  function selectIndex(i){
+    const items = list.querySelectorAll('.kbar-item');
+    if (items.length===0) return;
+    kbarIndex = (i + items.length) % items.length;
+    items.forEach((el,idx)=> el.setAttribute('aria-selected', idx===kbarIndex ? 'true' : 'false'));
+    items[kbarIndex]?.scrollIntoView({block:'nearest'});
+  }
+
+  function onKey(e){
+    if (e.key==='Escape'){ close(); return; }
+    if (e.key==='ArrowDown'){ e.preventDefault(); selectIndex(kbarIndex+1); return; }
+    if (e.key==='ArrowUp'){ e.preventDefault(); selectIndex(kbarIndex-1); return; }
+    if (e.key==='Enter'){
+      const items = list.querySelectorAll('.kbar-item');
+      const sel = items[kbarIndex];
+      if (sel){ sel.click(); }
+      return;
+    }
+  }
+
+  input.addEventListener('input', ()=> renderList(input.value));
+  wrap.openKbar = open;
+  wrap.closeKbar = close;
+}
+function openKbar(){ ensureKbar(); document.getElementById('kbar').openKbar(); }
+
+// ===== Keyboard Navigation (table rows) =====
+function getRenderedRowEls(){
+  return qsa('#customers tbody tr');
+}
+function updateRowFocus(){
+  const rows = getRenderedRowEls();
+  rows.forEach(r=>r.classList.remove('row-focus'));
+  if (state.focusIndex<0 || state.focusIndex>=rows.length) return;
+  rows[state.focusIndex].classList.add('row-focus');
+}
+function moveFocus(delta){
+  const rows = getRenderedRowEls();
+  if (rows.length===0) return;
+  if (state.focusIndex===-1) state.focusIndex = 0;
+  else state.focusIndex = Math.min(rows.length-1, Math.max(0, state.focusIndex + delta));
+  updateRowFocus();
+}
+function openFocused(){
+  const idx = state.focusIndex;
+  if (idx<0) return;
+  const abs = (state.page-1)*state.perPage + idx;
+  const r = state.filtered[abs];
+  if (r) openDrawer(r);
+}
+function selectViewRadio(v){
+  const r = document.querySelector(`.view-toggle input[value="${v}"]`);
+  if (r) r.checked = true;
+}
+
+// ===== Events =====
+function attach(){
+  // 入力 → デバウンス
+  ['#q','#from','#to','#menuFilter','#tagFilter','#quickSeg','#followOnly'].forEach(sel=>{
+    const el = qs(sel);
+    el.addEventListener('input', applyFilterDebounced);
+    el.addEventListener('change', applyFilter);
+  });
+  // ソート
+  qs('#sort').addEventListener('change', ()=>{
+    applySort();
+  });
+
+  // 再読込
+  qs('#reload').addEventListener('click', async ()=>{
+    try { setGlobalLoading(true, '更新中…'); await loadData(); showToast('最新データを取得しました', 'success'); }
+    finally { setGlobalLoading(false); }
+  });
+
+  // CSV
+  qs('#exportCsv').addEventListener('click', exportCsv);
+
+  // 編集ゲート：編集/保存/キャンセル
+  qs('#editToggle').addEventListener('click', ()=> setEditMode(true));
+  qs('#cancelEdit').addEventListener('click', ()=>{
+    if (state.editSnapshot) fillProfileForm(state.editSnapshot);
+    setEditMode(false);
+    qs('#saveStatus').textContent = '';
+  });
+  qs('#saveNote').addEventListener('click', saveNote);
+
+  // ビュー切替（永続化）
+  document.querySelectorAll('input[name="view"]').forEach(r=>{
+    r.addEventListener('change', ()=>{
+      const v = r.value;
+      document.body.classList.remove('view-auto','view-mobile','view-desktop');
+      document.body.classList.add('view-'+v);
+      settings.view = v;
+    });
+  });
+  // 初期ビュー復元
+  document.body.classList.remove('view-auto','view-mobile','view-desktop');
+  document.body.classList.add('view-'+settings.view);
+  selectViewRadio(settings.view);
+
+  // セグメント
+  qs('#saveSegment').addEventListener('click', saveCurrentSegment);
+  qs('#applySegment').addEventListener('click', applySelectedSegment);
+  qs('#deleteSegment').addEventListener('click', deleteSelectedSegment);
+  loadSavedSegments();
+
+  // 重複候補
+  qs('#toggleDuplicates').addEventListener('click', ()=>showDupes(true));
+  qs('#dupesPanel .close').addEventListener('click', ()=>showDupes(false));
+  qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
+
+  // テーマ適用（初回）
+  if (settings.theme !== 'system') applyTheme();
+
+  // コマンドパレット
+  ensureKbar();
+
+  // テーブルヘッダーの右クリックで列メニュー
+  const thead = qs('#customers thead');
+  thead.addEventListener('contextmenu', (e)=>{ e.preventDefault(); openColumnMenuAt(e.clientX, e.clientY); });
+
+  // キーボードショートカット
+  document.addEventListener('keydown', (e)=>{
+    const tag = (e.target.tagName || '').toLowerCase();
+    const typing = tag==='input' || tag==='textarea' || e.target.isContentEditable;
+
+    // / で検索フォーカス（入力中は無効）
+    if (!typing && e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      qs('#q').focus();
+      return;
+    }
+    // ⌘/Ctrl + K = コマンドパレット
+    if ((e.key === 'k' || e.key === 'K') && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault(); openKbar(); return;
+    }
+    // Alt + T = テーマトグル
+    if (e.key.toLowerCase() === 't' && e.altKey) {
+      e.preventDefault(); toggleThemeQuick(); return;
+    }
+    // 行選択（表）
+    if (!typing && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault();
+      moveFocus(e.key==='ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (!typing && e.key === 'Enter') {
+      openFocused();
+      return;
+    }
+    // ESC で各種モーダル類を閉じる（優先度：KBar → 重複 → ドロワー）
+    if (e.key === 'Escape') {
+      const kbar = document.getElementById('kbar');
+      if (kbar && !kbar.hidden){ kbar.closeKbar(); return; }
+      const dupesOpen = qs('#dupesPanel')?.getAttribute('aria-hidden')==='false';
+      if (dupesOpen){ showDupes(false); return; }
+      const drawerOpen = qs('#drawer')?.getAttribute('aria-hidden')==='false';
+      if (drawerOpen){ closeDrawer(); return; }
+    }
+  });
+}
+
+// ===== Init =====
+(async function init(){
+  try {
+    ensureToastHost();
+    setGlobalLoading(true, 'データを読み込んでいます…');
+    attach();
+    wireLoadingRetry();
+    await maybeHandleTokenView();
+    await loadData();
+    setGlobalLoading(false);
+  } catch(e){
+    console.error(e);
+    showLoadError('読み込みに失敗しました。［再読み込み］を押してください。');
+  }
+})();
