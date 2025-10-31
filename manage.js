@@ -61,6 +61,13 @@ const toIsoTZ = (ymdhm, tz='+09:00') => `${ymdhm}:00${tz}`;
 
 function debounce(fn, wait=300){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
 
+// 入力タイプ対応チェック（iOS古め対策）
+const supportsDatetimeLocal = (() => {
+  const i = document.createElement('input');
+  i.setAttribute('type', 'datetime-local');
+  return i.type === 'datetime-local';
+})();
+
 // GET helper
 async function fetchJson(url){
   const res = await fetch(url, { method:'GET' });
@@ -134,6 +141,7 @@ function setGlobalSaving(on, text){
   el.setAttribute('aria-hidden', on ? 'false' : 'true');
   el.setAttribute('aria-busy', on ? 'true' : 'false');
   document.body.classList.toggle('is-saving', !!on);
+  document.documentElement.classList.toggle('is-saving', !!on);
 }
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
 /** 保存系で使う共通ラッパー（保存中ロック→保存しました→自動クローズ） */
@@ -415,7 +423,7 @@ function openDrawer(customer){
   }
   renderSourceStats(srcCounts);
 
-  // 履歴描画
+  // 履歴描画（ドロワー幅依存）
   renderHistory(hist);
 
   const titleName = customer.name || customer.email || customer.phone || '';
@@ -438,6 +446,7 @@ function openDrawer(customer){
   drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
   qs('#drawer .close').onclick = closeDrawer;
 
+  // リサイズ/向き変更/ドロワー幅変化を監視して再描画
   if (!openDrawer._resizeBound) {
     openDrawer._resizeBound = true;
     window.addEventListener('resize', debounce(()=> {
@@ -445,6 +454,23 @@ function openDrawer(customer){
         renderHistory(state.currentHist);
       }
     }, 150));
+  }
+  window.addEventListener('orientationchange', debounce(() => {
+    if (qs('#drawer')?.getAttribute('aria-hidden') === 'false') {
+      renderHistory(state.currentHist);
+    }
+  }, 150));
+
+  if (!openDrawer._ro) {
+    const target = document.querySelector('#drawer .drawer-inner');
+    if (target && 'ResizeObserver' in window) {
+      openDrawer._ro = new ResizeObserver(debounce(()=> {
+        if (qs('#drawer')?.getAttribute('aria-hidden') === 'false') {
+          renderHistory(state.currentHist);
+        }
+      }, 120));
+      openDrawer._ro.observe(target);
+    }
   }
 }
 
@@ -502,12 +528,23 @@ function renderSourceStats(counts){
   wrap.innerHTML = entries.map(([label, cnt]) => `<span class="srcchip">${esc(label)}：<span class="count">${cnt}</span></span>`).join(' ');
 }
 
-// ===== 来店履歴（PC=表／SP=カード） =====
+// ===== 来店履歴（PC=表／SP=カード）：ドロワー幅で判定 =====
+let lastHistoryIsMobile = null;
+function isHistoryMobileLayout() {
+  const drawerInner = document.querySelector('#drawer .drawer-inner');
+  const w = drawerInner ? drawerInner.clientWidth : window.innerWidth;
+  return w <= 900;
+}
 function renderHistory(hist){
   const mount = qs('#historyMount');
+  if (!mount) return;
+  const isMobile = isHistoryMobileLayout();
+  if (lastHistoryIsMobile === isMobile && mount.childElementCount > 0) return;
+  lastHistoryIsMobile = isMobile;
+
   mount.innerHTML = '';
-  const isMobile = window.matchMedia('(max-width: 900px)').matches;
-  if (isMobile) renderHistoryCards(hist, mount); else renderHistoryTable(hist, mount);
+  if (isMobile) renderHistoryCards(hist, mount);
+  else renderHistoryTable(hist, mount);
   wireHistoryEvents(mount);
 }
 
@@ -604,7 +641,7 @@ function renderHistoryCards(hist, mount){
 }
 
 function wireHistoryEvents(container){
-  // メモ編集（※保存ボタンはないのでトーストのみ。要件対象外）
+  // メモ編集
   container.querySelectorAll('.memo-edit').forEach(btn=>{
     btn.addEventListener('click', async (e)=>{
       const holder = e.target.closest('[data-resv-id]');
@@ -613,7 +650,7 @@ function wireHistoryEvents(container){
       const memo = prompt('この予約のメモ', cur);
       if (memo == null) return;
       try{
-        await withSaving(async ()=>{ // オーバーレイを使いたくない場合は withSaving を外してOK
+        await withSaving(async ()=>{
           await postJSON({ action:'upsertResvMemo', resvId, memo });
         }, {start:'保存中です…', done:'保存しました', hold:700});
         holder.querySelector('.memo-text').textContent = memo;
@@ -626,16 +663,43 @@ function wireHistoryEvents(container){
     });
   });
 
-  // 日時変更：開く
+  // 日時変更：開く（datetime-local未対応にも対応）
   container.querySelectorAll('.resched-btn').forEach(btn=>{
     btn.addEventListener('click', e=>{
       const holder = e.target.closest('[data-resv-id]');
       const ed = holder.querySelector('.resched-editor');
       ed?.removeAttribute('hidden');
-      const dt = holder.querySelector('.resched-dt');
+
       const startIso = holder.dataset.startIso || '';
       const d = startIso ? new Date(startIso) : null;
-      if (d && !isNaN(d)) dt.value = `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;
+      if (!d || isNaN(d)) return;
+
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mm = String(d.getMinutes()).padStart(2,'0');
+
+      const dt = holder.querySelector('.resched-dt');
+      if (supportsDatetimeLocal && dt) {
+        dt.value = `${y}-${m}-${day}T${hh}:${mm}`;
+      } else {
+        if (!holder.querySelector('.resched-date')) {
+          const dateInput = document.createElement('input');
+          dateInput.type = 'date';
+          dateInput.className = 'resched-date';
+          const timeInput = document.createElement('input');
+          timeInput.type = 'time';
+          timeInput.className = 'resched-time';
+          const where = holder.querySelector('.resched-editor');
+          where.insertBefore(dateInput, where.querySelector('.do-resched'));
+          where.insertBefore(timeInput, where.querySelector('.do-resched'));
+        }
+        const di = holder.querySelector('.resched-date');
+        const ti = holder.querySelector('.resched-time');
+        di.value = `${y}-${m}-${day}`;
+        ti.value = `${hh}:${mm}`;
+      }
     });
   });
 
@@ -647,16 +711,29 @@ function wireHistoryEvents(container){
     });
   });
 
-  // 日時変更：保存（←要件対象。保存中は他操作不可）
+  // 日時変更：保存（datetime-local 未対応でも保存可能）
   container.querySelectorAll('.do-resched').forEach(btn=>{
     btn.addEventListener('click', async e=>{
       const holder = e.target.closest('[data-resv-id]');
       const resvId = holder?.dataset?.resvId || '';
-      const dt = holder.querySelector('.resched-dt')?.value;
-      if (!dt) return showToast('日時を選択してください', 'warn');
+
+      let dtValue = '';
+      const dt = holder.querySelector('.resched-dt');
+      if (supportsDatetimeLocal && dt && dt.value) {
+        dtValue = dt.value;
+      } else {
+        const di = holder.querySelector('.resched-date');
+        const ti = holder.querySelector('.resched-time');
+        if (di?.value && ti?.value) {
+          dtValue = `${di.value}T${ti.value}`;
+        }
+      }
+
+      if (!dtValue) return showToast('日時を選択してください', 'warn');
+
       try{
         await withSaving(async ()=>{
-          await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dt) });
+          await postJSON({ action:'rescheduleById', resvId, newStartIso: toIsoTZ(dtValue) });
           const keepKey = state.selectedCustomerKey;
           await loadData();
           const again = state.customers.find(c => getKey(c) === keepKey);
@@ -730,7 +807,7 @@ async function saveNote(){
   }
 }
 
-// ===== 列表示切替（任意） =====
+// ===== 列表示切替（任意/将来用） =====
 function getColumnsMeta(){
   const ths = qsa('#customers thead th');
   return ths.map((th, i)=>({ index:i+1, label: th.textContent.trim() || `列${i+1}` }));
@@ -811,11 +888,24 @@ function attach(){
       document.body.classList.remove('view-auto','view-mobile','view-desktop');
       document.body.classList.add('view-'+v);
       settings.view = v;
+      // :has() 非対応フォールバック
+      updateViewToggleChecked();
     });
   });
   document.body.classList.remove('view-auto','view-mobile','view-desktop');
   document.body.classList.add('view-'+settings.view);
   selectViewRadio(settings.view);
+
+  // :has() 非対応フォールバック（label.checkedを付与）
+  function updateViewToggleChecked() {
+    document.querySelectorAll('.view-toggle label').forEach(l => l.classList.remove('checked'));
+    const cur = document.querySelector('.view-toggle input:checked');
+    if (cur) cur.closest('label')?.classList.add('checked');
+  }
+  document.querySelectorAll('.view-toggle input').forEach(r => {
+    r.addEventListener('change', updateViewToggleChecked);
+  });
+  updateViewToggleChecked();
 
   // キーボードショートカット
   document.addEventListener('keydown', (e)=>{
