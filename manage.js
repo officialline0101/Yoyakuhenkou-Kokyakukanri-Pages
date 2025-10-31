@@ -723,3 +723,16 @@ function attach(){
     showLoadError('読み込みに失敗しました。［再読み込み］を押してください。');
   }
 })();
+
+function openDrawer(customer){
+  // ...（既存ロジックそのまま）
+  const drawer=qs('#drawer'); drawer.setAttribute('aria-hidden','false');
+  document.body.classList.add('drawer-open');          // ← 追加：後方互換のスクロールロック
+  drawer.addEventListener('click',(e)=>{ if(e.target===drawer) closeDrawer(); },{once:true});
+  qs('#drawer .close').onclick = closeDrawer;
+}
+
+function closeDrawer(){
+  qs('#drawer').setAttribute('aria-hidden','true');
+  document.body.classList.remove('drawer-open');       // ← 追加：解除
+}
