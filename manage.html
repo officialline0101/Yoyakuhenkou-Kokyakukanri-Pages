@@ -4,11 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>顧客管理</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- 推奨：高品位表示用フォント（任意。外せます） -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Noto+Sans+JP:wght@400;600&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="./manage.css" />
 </head>
 <body class="view-auto">
+  <!-- ▼▼ 初回ロード用オーバーレイ ▼▼ -->
+  <div id="loading" class="loading" aria-hidden="false" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+      <div class="spinner" role="img" aria-label="読み込み中"></div>
+      <p class="loading-text">データを読み込んでいます…</p>
+      <button class="retry" hidden>再読み込み</button>
+    </div>
+  </div>
+  <!-- ▲▲ /初回ロード用オーバーレイ ▲▲ -->
+
   <header>
     <h1>顧客管理</h1>
 
