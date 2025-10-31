@@ -39,6 +39,36 @@ async function fetchJson(url){
   return j.data || [];
 }
 
+// ===== Global Loading Overlay =====
+function setGlobalLoading(on, text){
+  const el = document.querySelector('#loading');
+  if (!el) return;
+  if (text) el.querySelector('.loading-text').textContent = text;
+  el.setAttribute('aria-hidden', on ? 'false' : 'true');
+  document.body.classList.toggle('is-loading', !!on);
+}
+function showLoadError(msg){
+  setGlobalLoading(true, msg || '読み込みに失敗しました。');
+  const retryBtn = document.querySelector('#loading .retry');
+  if (retryBtn) retryBtn.hidden = false;
+}
+function wireLoadingRetry(){
+  const retryBtn = document.querySelector('#loading .retry');
+  if (!retryBtn || retryBtn.dataset.wired) return;
+  retryBtn.dataset.wired = '1';
+  retryBtn.addEventListener('click', async ()=>{
+    retryBtn.hidden = true;
+    setGlobalLoading(true, '再試行中…');
+    try {
+      await loadData();
+      setGlobalLoading(false);
+    } catch(e){
+      console.error(e);
+      showLoadError('再試行に失敗しました。ネットワークや権限をご確認ください。');
+    }
+  });
+}
+
 // ====== Data Load & Enhance ======
 async function loadData(){
   const base = GAS_WEBAPP_URL;
@@ -96,7 +126,6 @@ function enhanceCustomer(c){
     }
   }
 
-  // latestPast/daysSinceLast はサーバーでも計算済み（保険で再計算）
   const latestPast = c.latestPast ?? (!!last && (now - last) > 0);
   const daysSinceLast = c.daysSinceLast ?? (last ? Math.floor((now - last)/86400000) : null);
 
@@ -649,7 +678,17 @@ function attach(){
     qs(sel).addEventListener('change', applyFilter);
   });
   qs('#sort').addEventListener('change', applySort);
-  qs('#reload').addEventListener('click', loadData);
+
+  // 再読込：ローディングオーバーレイを出す
+  qs('#reload').addEventListener('click', async ()=>{
+    try {
+      setGlobalLoading(true, '更新中…');
+      await loadData();
+    } finally {
+      setGlobalLoading(false);
+    }
+  });
+
   qs('#exportCsv').addEventListener('click', exportCsv);
   qs('#saveNote').addEventListener('click', saveNote);
 
@@ -670,8 +709,17 @@ function attach(){
   qs('#dupesPanel').addEventListener('click', (e)=>{ if(e.target.id==='dupesPanel') showDupes(false); });
 }
 
+// ===== Init =====
 (async function init(){
-  attach();
-  await maybeHandleTokenView();
-  try { await loadData(); } catch(e){ alert('データ取得に失敗しました。\n'+e); console.error(e); }
+  try {
+    setGlobalLoading(true, 'データを読み込んでいます…');
+    attach();
+    wireLoadingRetry();
+    await maybeHandleTokenView();
+    await loadData();
+    setGlobalLoading(false);
+  } catch(e){
+    console.error(e);
+    showLoadError('読み込みに失敗しました。［再読み込み］を押してください。');
+  }
 })();
