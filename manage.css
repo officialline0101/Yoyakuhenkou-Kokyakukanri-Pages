@@ -520,3 +520,447 @@ td.empty, .empty-card { text-align: center; color: var(--muted); padding: 24px 1
 .toast.success { border-color: color-mix(in hsl, var(--ok) 40%, var(--border)); }
 .toast.warn    { border-color: color-mix(in hsl, var(--warn) 40%, var(--border)); }
 .toast.error   { border-color: color-mix(in hsl, var(--danger) 40%, var(--border)); }
+
+/* =========================================================
+   Enhanced UI overrides - append to bottom of manage.css
+   ========================================================= */
+
+/* ---- Theme 微調整 ---- */
+:root {
+  --radius:     18px;
+  --radius-sm:  14px;
+  --radius-xs:  10px;
+  --shadow-1:   0 14px 35px rgba(0,0,0,.30), 0 3px 14px rgba(0,0,0,.22);
+  --shadow-2:   0 18px 55px rgba(0,0,0,.42), 0 10px 26px rgba(0,0,0,.34);
+}
+
+/* 背景を少しだけリッチに */
+body {
+  background:
+    radial-gradient(1200px 600px at 85% -20%, rgba(108,92,231,.20), transparent 60%),
+    radial-gradient(900px 520px at -15% -20%, rgba(34,211,238,.18), transparent 52%),
+    linear-gradient(160deg, #fcfcfc 0%, #fcfcfc 45%, #fcfcfc 100%);
+}
+
+/* ---- スクロールバー（モダンブラウザ向け） ---- */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: color-mix(in hsl, var(--surface) 80%, transparent);
+}
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in hsl, var(--brand) 40%, var(--border));
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in hsl, var(--brand) 60%, var(--border));
+}
+
+/* ---- Header 強化 ---- */
+header {
+  backdrop-filter: blur(20px) saturate(140%);
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface) 80%, transparent) 0%, var(--surface) 100%);
+  border-bottom: 1px solid color-mix(in hsl, var(--border) 80%, #000);
+}
+
+.header-top {
+  padding-inline: 20px;
+}
+
+.header-top h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-top h1::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, #fff, var(--accent));
+  box-shadow: 0 0 0 4px color-mix(in hsl, var(--accent) 20%, transparent),
+              0 0 18px rgba(34,211,238,.55);
+}
+
+/* フィルター全体をカードっぽく */
+#filtersWrap {
+  border-top: 1px solid color-mix(in hsl, var(--border) 80%, #000);
+  border-bottom: 1px solid color-mix(in hsl, var(--border) 80%, #000);
+  background:
+    radial-gradient(800px 480px at 0 0, rgba(148,163,255,.10), transparent 60%),
+    linear-gradient(180deg, color-mix(in hsl, var(--surface) 96%, transparent), color-mix(in hsl, var(--surface) 80%, transparent));
+}
+
+/* tools グリッドの余白を少し広めに */
+header .tools {
+  gap: 12px 16px;
+  padding-inline: 20px;
+}
+
+/* ラベル（フィールド名）を少し強調 */
+.field .title {
+  font-size: 11px;
+  letter-spacing: .10em;
+  text-transform: uppercase;
+  opacity: .9;
+}
+
+/* ---- コントロール系 ---- */
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="tel"],
+input[type="date"],
+input[type="number"],
+select,
+textarea {
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 0 0, rgba(255,255,255,.04), transparent 60%),
+    var(--surface);
+  border: 1px solid color-mix(in hsl, var(--border) 90%, #000);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.02);
+}
+
+.note-editor .grid input,
+.note-editor .grid select,
+.note-editor .grid textarea {
+  border-radius: 12px;
+}
+
+/* focus 時のリングを少し見やすく */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  border-color: color-mix(in hsl, var(--brand) 80%, var(--accent));
+  box-shadow:
+    0 0 0 1px rgba(15,23,42,.9),
+    0 0 0 3px color-mix(in hsl, var(--brand) 40%, transparent);
+}
+
+/* ビュートグルボタンを pill っぽく */
+.view-toggle {
+  background: color-mix(in hsl, var(--surface-2) 80%, transparent);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.02),
+    0 10px 22px rgba(0,0,0,.36);
+}
+.view-toggle label {
+  font-size: 12px;
+}
+
+/* :has 非対応フォールバックの見た目も整える */
+.view-toggle label.checked {
+  position: relative;
+}
+.view-toggle label.checked::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 0 0, rgba(255,255,255,.10), transparent 60%),
+    color-mix(in hsl, var(--surface) 90%, transparent);
+  z-index: -1;
+}
+
+/* ---- ボタン ---- */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding-inline: 14px;
+  border: 1px solid color-mix(in hsl, var(--border) 90%, #000);
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 96%, transparent), var(--surface));
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.04),
+    0 10px 18px rgba(0,0,0,.35);
+}
+
+button:hover {
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 96%, transparent), color-mix(in hsl, var(--surface) 90%, transparent));
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(0);
+  box-shadow:
+    0 0 0 rgba(0,0,0,0),
+    0 4px 10px rgba(0,0,0,.45) inset;
+}
+
+#reload {
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 95%, transparent), var(--surface-2));
+}
+
+/* 強調ボタン（CSV, 保存等） */
+#exportCsv,
+#saveNote,
+.do-resched {
+  background: linear-gradient(135deg, var(--brand), var(--accent));
+  border-color: color-mix(in hsl, var(--brand-600) 70%, #000);
+  color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.16),
+    0 12px 24px rgba(37,99,235,.55);
+}
+#exportCsv:hover,
+#saveNote:hover,
+.do-resched:hover {
+  background: linear-gradient(135deg, var(--brand-600), color-mix(in hsl, var(--accent) 80%, var(--brand-600)));
+}
+
+/* ---- セクションタイトル ---- */
+.section-title {
+  margin: 0;
+  padding: 10px 18px;
+  font-size: 12px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-weak);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--brand));
+}
+
+/* ---- メインカード（テーブル／カード共通の見た目統一） ---- */
+.table-wrap,
+.card,
+.hcard,
+.loading-card,
+.saving-card {
+  border-radius: 22px;
+  border: 1px solid color-mix(in hsl, var(--border) 92%, #000);
+  background:
+    radial-gradient(circle at 0 0, rgba(148,163,255,.14), transparent 60%),
+    linear-gradient(180deg, color-mix(in hsl, var(--surface) 96%, transparent), var(--surface));
+}
+
+/* テーブルヘッダをよりフラット＆分かりやすく */
+thead th {
+  font-size: 12px;
+  text-transform: none;
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 90%, transparent), var(--surface));
+  border-bottom: 1px solid color-mix(in hsl, var(--border) 90%, #000);
+}
+
+/* 行のストライプ＋ホバー */
+tbody tr:nth-child(even) {
+  background: color-mix(in hsl, var(--surface) 96%, transparent);
+}
+tbody tr:hover {
+  background:
+    linear-gradient(90deg, color-mix(in hsl, var(--brand) 12%, transparent), transparent);
+}
+
+/* フォーカス行をより目立たせる */
+tbody tr.row-focus {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in hsl, var(--brand) 65%, transparent),
+    inset 0 0 0 2px color-mix(in hsl, var(--accent) 32%, transparent);
+}
+
+/* 列非表示（将来用 / すでに JS でクラス付与されている想定） */
+#customers.hide-col-1  th:nth-child(1),
+#customers.hide-col-1  td:nth-child(1),
+#customers.hide-col-2  th:nth-child(2),
+#customers.hide-col-2  td:nth-child(2),
+#customers.hide-col-3  th:nth-child(3),
+#customers.hide-col-3  td:nth-child(3),
+#customers.hide-col-4  th:nth-child(4),
+#customers.hide-col-4  td:nth-child(4),
+#customers.hide-col-5  th:nth-child(5),
+#customers.hide-col-5  td:nth-child(5),
+#customers.hide-col-6  th:nth-child(6),
+#customers.hide-col-6  td:nth-child(6),
+#customers.hide-col-7  th:nth-child(7),
+#customers.hide-col-7  td:nth-child(7),
+#customers.hide-col-8  th:nth-child(8),
+#customers.hide-col-8  td:nth-child(8),
+#customers.hide-col-9  th:nth-child(9),
+#customers.hide-col-9  td:nth-child(9) {
+  display: none;
+}
+
+/* 連絡先チップ */
+.cell-contacts a {
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 88%, transparent), var(--surface-2));
+  font-size: 12px;
+}
+
+/* タグ / バッジを少し立体的に */
+.tag {
+  border-style: solid;
+  border-color: color-mix(in hsl, var(--border) 90%, #000);
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 96%, transparent), var(--surface-2));
+  font-size: 11.5px;
+}
+
+.badge {
+  box-shadow: 0 1px 0 rgba(255,255,255,.06), 0 6px 12px rgba(0,0,0,.26);
+}
+
+/* ---- カード（モバイル顧客一覧） ---- */
+.cards {
+  gap: 16px;
+}
+
+.card {
+  padding: 16px 14px 14px;
+  position: relative;
+  overflow: hidden;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 0 0, rgba(148,163,255,.15), transparent 55%);
+  opacity: .6;
+  pointer-events: none;
+}
+.card .name {
+  font-size: 15.5px;
+}
+.card .meta {
+  font-size: 12px;
+}
+
+/* ---- ドロワー ---- */
+#drawer[aria-hidden="false"] .drawer-inner {
+  background:
+    radial-gradient(900px 600px at 0 0, rgba(148,163,255,.18), transparent 55%),
+    linear-gradient(180deg, color-mix(in hsl, var(--surface) 98%, transparent), var(--surface));
+}
+
+/* クローズボタンを少し目立たせる */
+#drawer .close {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.06),
+    0 10px 18px rgba(0,0,0,.35);
+}
+
+/* note-editor ブロックのまとまり感 */
+.note-editor .grid {
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 96%, transparent), var(--surface-2));
+}
+
+/* 「最終来店の状態」インジケータ用（JS で #lastIndicator にメッセージを入れる想定） */
+.last-indicator {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-weak);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.last-indicator::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in hsl, var(--ok) 30%, transparent);
+}
+.last-indicator.is-idle::before {
+  background: var(--warn);
+  box-shadow: 0 0 0 3px color-mix(in hsl, var(--warn) 30%, transparent);
+}
+.last-indicator.is-danger::before {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in hsl, var(--danger) 30%, transparent);
+}
+
+/* ---- 来店履歴テーブル／カード ---- */
+#historyMount table {
+  border-radius: 16px;
+  overflow: hidden;
+}
+#historyMount tbody tr:hover {
+  background: color-mix(in hsl, var(--brand) 10%, transparent);
+}
+
+/* 履歴カードの情報間隔を少し広げる */
+.hcard .body {
+  gap: 8px;
+}
+.hcard .label {
+  font-size: 11px;
+}
+
+/* 履歴のメモエリアを読みやすく */
+.hcard .memo,
+#historyMount .memo-text {
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in hsl, var(--surface-2) 94%, transparent), var(--surface-2));
+}
+
+/* 日時変更まわりのボタンを小さめにまとめる */
+.memo-edit,
+.resched-btn,
+.do-resched,
+.cancel-resched {
+  border-radius: 999px;
+}
+
+/* ---- ローディング・保存オーバーレイ ---- */
+.loading-card,
+.saving-card {
+  padding-top: 28px;
+  padding-bottom: 26px;
+}
+.spinner {
+  border-width: 3px;
+  border-color: color-mix(in hsl, var(--border) 80%, #000);
+  border-top-color: var(--accent);
+}
+
+/* ---- Toast ---- */
+.toast {
+  backdrop-filter: blur(10px);
+  background:
+    linear-gradient(135deg, color-mix(in hsl, var(--surface) 96%, transparent), var(--surface));
+}
+
+/* ---- モバイル微調整 ---- */
+@media (max-width: 680px) {
+  header .tools {
+    padding-inline: 14px;
+  }
+  .table-wrap,
+  .cards {
+    margin-top: 12px;
+  }
+  .card {
+    border-radius: 18px;
+  }
+}
+
+/* ---- Print 調整（余白少し増やす） ---- */
+@media print {
+  .table-wrap {
+    border-radius: 0;
+  }
+}
