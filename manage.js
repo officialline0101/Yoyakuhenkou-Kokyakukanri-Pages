@@ -14,7 +14,8 @@ const LS = {
   cols:  'crm_cols',
   view:  'crm_viewMode',
   per:   'crm_perPage',
-  sort:  'crm_sort'
+  sort:  'crm_sort',
+  filters: 'crm_filtersVisible' // ★ 追加：フィルター表示状態
 };
 const settings = {
   get theme(){ return localStorage.getItem(LS.theme) || 'system'; },
@@ -26,7 +27,16 @@ const settings = {
   get per(){ return Number(localStorage.getItem(LS.per) || '20'); },
   set per(n){ localStorage.setItem(LS.per, String(n)); state.perPage = n; state.page = 1; render(); showToast(`1ページ ${n} 件表示`, 'success'); },
   get sort(){ return localStorage.getItem(LS.sort) || 'lastReservation:desc'; },
-  set sort(s){ localStorage.setItem(LS.sort, s); }
+  set sort(s){ localStorage.setItem(LS.sort, s); },
+
+  // ★ 追加：フィルター表示状態（true: 表示 / false: 非表示）
+  get filtersVisible(){ 
+    return localStorage.getItem(LS.filters) !== 'hidden';
+  },
+  set filtersVisible(v){
+    localStorage.setItem(LS.filters, v ? 'visible' : 'hidden');
+    applyFilterVisibility();
+  }
 };
 
 const state = {
@@ -42,6 +52,19 @@ const state = {
   focusIndex: -1,
   currentHist: [],
 };
+
+function applyFilterVisibility(){
+  const wrap = qs('#filtersWrap');
+  const btn  = qs('#toggleFilters');
+  if (!wrap || !btn) return;
+
+  const visible = settings.filtersVisible;
+
+  wrap.hidden = !visible;
+  btn.setAttribute('aria-expanded', visible ? 'true' : 'false');
+  btn.textContent = visible ? '絞り込みを隠す' : '絞り込みを表示';
+  btn.setAttribute('aria-label', visible ? '絞り込み条件を隠す' : '絞り込み条件を表示');
+}
 
 // ===== Util =====
 const qs = s => document.querySelector(s);
@@ -871,6 +894,16 @@ function attach(){
 
   // CSV
   qs('#exportCsv').addEventListener('click', exportCsv);
+
+  // ★ フィルター表示切替ボタン
+  const toggleBtn = qs('#toggleFilters');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      settings.filtersVisible = !settings.filtersVisible;
+    });
+    // 初期状態を localStorage から反映
+    applyFilterVisibility();
+  }
 
   // 編集ゲート：編集/保存/キャンセル
   qs('#editToggle').addEventListener('click', ()=> setEditMode(true));
