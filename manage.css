@@ -87,12 +87,37 @@ header {
   box-shadow: 0 8px 22px rgba(0,0,0,.18);
 }
 
-header > h1 {
-  margin: 0;
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 20px 18px 8px;
+  gap: 8px;
+}
+
+.header-top h1 {
+  margin: 0;
   font-weight: 800;
   font-size: clamp(18px, 2.2vw, 24px);
   letter-spacing: .02em;
+}
+
+/* フィルター開閉ボタン */
+#toggleFilters {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* スマホ時は縦並びにして詰める */
+@media (max-width: 680px) {
+  .header-top {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 12px 6px;
+  }
 }
 
 /* ==== フィルター群：各項目にタイトル（label.field） ==== */
