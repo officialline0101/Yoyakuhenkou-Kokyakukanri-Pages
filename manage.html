@@ -32,79 +32,95 @@
   <!-- ▲ 保存オーバーレイ -->
 
   <header>
-    <h1>顧客管理</h1>
+    <!-- ▼ タイトル＋フィルター表示切替ボタン -->
+    <div class="header-top">
+      <h1>顧客管理</h1>
+      <button
+        id="toggleFilters"
+        type="button"
+        aria-expanded="true"
+        aria-controls="filtersWrap"
+      >
+        絞り込みを隠す
+      </button>
+    </div>
+    <!-- ▲ タイトル＋ボタン -->
 
-    <!-- 行1：フィルター群（各項目にタイトル付き） -->
-    <div class="tools">
-      <label class="field field-q">
-        <span class="title">検索キーワード</span>
-        <input id="q" type="search" placeholder="名前・メール・電話で検索" />
-      </label>
+    <!-- ▼ フィルター全体（ここを丸ごと開閉） -->
+    <div id="filtersWrap">
+      <!-- 行1：フィルター群（各項目にタイトル付き） -->
+      <div class="tools">
+        <label class="field field-q">
+          <span class="title">検索キーワード</span>
+          <input id="q" type="search" placeholder="名前・メール・電話で検索" />
+        </label>
 
-      <label class="field field-from">
-        <span class="title">期間（開始）</span>
-        <input id="from" type="date" />
-      </label>
+        <label class="field field-from">
+          <span class="title">期間（開始）</span>
+          <input id="from" type="date" />
+        </label>
 
-      <div class="field field-tilde">
-        <span class="title">&nbsp;</span>
-        <span class="tilde">〜</span>
+        <div class="field field-tilde">
+          <span class="title">&nbsp;</span>
+          <span class="tilde">〜</span>
+        </div>
+
+        <label class="field field-to">
+          <span class="title">期間（終了）</span>
+          <input id="to" type="date" />
+        </label>
+
+        <label class="field field-menu">
+          <span class="title">メニュー</span>
+          <select id="menuFilter"><option value="">すべて</option></select>
+        </label>
+
+        <label class="field field-tag">
+          <span class="title">タグ</span>
+          <input id="tagFilter" type="search" placeholder="例：VIP" />
+        </label>
+
+        <label class="field field-quick">
+          <span class="title">クイック</span>
+          <select id="quickSeg">
+            <option value="">すべて</option>
+            <option value="new">新規（30日以内/回数=1）</option>
+            <option value="loyal">常連（回数≥5 & 90日以内）</option>
+            <option value="idle">休眠（最終来店90日以上）</option>
+          </select>
+        </label>
+
+        <label class="field field-sort">
+          <span class="title">並び替え</span>
+          <select id="sort">
+            <option value="lastReservation:desc">最終来店 新→旧</option>
+            <option value="lastReservation:asc">最終来店 旧→新</option>
+            <option value="totalReservations:desc">来店回数 多→少</option>
+            <option value="name:asc">名前 A→Z</option>
+          </select>
+        </label>
+
+        <div class="field field-reload">
+          <span class="title">データ更新</span>
+          <button id="reload">再読込</button>
+        </div>
+
+        <div class="field field-csv">
+          <span class="title">エクスポート</span>
+          <button id="exportCsv">CSV</button>
+        </div>
       </div>
 
-      <label class="field field-to">
-        <span class="title">期間（終了）</span>
-        <input id="to" type="date" />
-      </label>
-
-      <label class="field field-menu">
-        <span class="title">メニュー</span>
-        <select id="menuFilter"><option value="">すべて</option></select>
-      </label>
-
-      <label class="field field-tag">
-        <span class="title">タグ</span>
-        <input id="tagFilter" type="search" placeholder="例：VIP" />
-      </label>
-
-      <label class="field field-quick">
-        <span class="title">クイック</span>
-        <select id="quickSeg">
-          <option value="">すべて</option>
-          <option value="new">新規（30日以内/回数=1）</option>
-          <option value="loyal">常連（回数≥5 & 90日以内）</option>
-          <option value="idle">休眠（最終来店90日以上）</option>
-        </select>
-      </label>
-
-      <label class="field field-sort">
-        <span class="title">並び替え</span>
-        <select id="sort">
-          <option value="lastReservation:desc">最終来店 新→旧</option>
-          <option value="lastReservation:asc">最終来店 旧→新</option>
-          <option value="totalReservations:desc">来店回数 多→少</option>
-          <option value="name:asc">名前 A→Z</option>
-        </select>
-      </label>
-
-      <div class="field field-reload">
-        <span class="title">データ更新</span>
-        <button id="reload">再読込</button>
-      </div>
-
-      <div class="field field-csv">
-        <span class="title">エクスポート</span>
-        <button id="exportCsv">CSV</button>
+      <!-- 行2：表示切替のみ -->
+      <div class="tools row2">
+        <div class="view-toggle" role="group" aria-label="表示切替">
+          <label><input type="radio" name="view" value="auto" checked> 自動</label>
+          <label><input type="radio" name="view" value="mobile"> モバイル</label>
+          <label><input type="radio" name="view" value="desktop"> PC</label>
+        </div>
       </div>
     </div>
-
-    <!-- 行2：表示切替のみ -->
-    <div class="tools row2">
-      <div class="view-toggle" role="group" aria-label="表示切替">
-        <label><input type="radio" name="view" value="auto" checked> 自動</label>
-        <label><input type="radio" name="view" value="mobile"> モバイル</label>
-        <label><input type="radio" name="view" value="desktop"> PC</label>
-      </div>
-    </div>
+    <!-- ▲ フィルター全体 -->
   </header>
 
   <main>
